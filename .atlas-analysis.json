@@ -1,0 +1,128 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Zerox",
+  "projectDescription": "Vision-powered OCR for converting documents to markdown using GPT-4, Claude, Gemini and other vision models",
+  "theme": "palm",
+  "primaryColor": "#1f6de4",
+  "lightColor": "#8cbce8",
+  "darkColor": "#0a213e",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Installation",
+            "pages": [
+              "installation/node",
+              "installation/python"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/how-it-works",
+              "concepts/supported-formats",
+              "concepts/model-providers"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/basic-usage",
+              "guides/data-extraction",
+              "guides/advanced-options",
+              "guides/error-handling",
+              "guides/performance-tuning"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Node.js SDK",
+            "pages": [
+              "api/node/zerox",
+              "api/node/parameters",
+              "api/node/response",
+              "api/node/types"
+            ]
+          },
+          {
+            "group": "Python SDK",
+            "pages": [
+              "api/python/zerox",
+              "api/python/parameters",
+              "api/python/response"
+            ]
+          },
+          {
+            "group": "Model Providers",
+            "pages": [
+              "api/providers/openai",
+              "api/providers/azure",
+              "api/providers/bedrock",
+              "api/providers/gemini"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Examples",
+        "groups": [
+          {
+            "group": "Common Use Cases",
+            "pages": [
+              "examples/pdf-to-markdown",
+              "examples/invoice-extraction",
+              "examples/batch-processing",
+              "examples/custom-prompts"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "examples/schema-extraction",
+              "examples/hybrid-extraction",
+              "examples/maintain-format",
+              "examples/custom-models"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Vision-powered OCR using GPT-4o, Claude, Gemini and other models",
+    "Converts PDFs and documents to clean markdown",
+    "Structured data extraction with JSON schema",
+    "Multi-provider support (OpenAI, Azure, AWS Bedrock, Google)",
+    "Supports 20+ document formats including PDF, DOCX, images",
+    "Concurrent page processing with configurable concurrency",
+    "Automatic image orientation correction and edge trimming",
+    "Per-page or full-document extraction modes",
+    "Hybrid extraction combining vision and text",
+    "Available in both Node.js and Python"
+  ],
+  "publicApiSurface": [
+    "zerox() - Main OCR function (Node.js)",
+    "zerox() - Main OCR async function (Python)",
+    "ZeroxArgs - Configuration interface",
+    "ZeroxOutput - Response interface",
+    "ModelOptions - Supported models enum",
+    "ModelProvider - Provider enum (OPENAI, AZURE, BEDROCK, GOOGLE)",
+    "ErrorMode - Error handling modes (THROW, IGNORE)",
+    "Page - Page response interface",
+    "CompletionResponse - OCR completion response",
+    "ExtractionResponse - Data extraction response"
+  ]
+}
