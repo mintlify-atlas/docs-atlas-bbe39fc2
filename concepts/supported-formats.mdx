@@ -1,0 +1,282 @@
+---
+title: Supported File Formats
+description: Complete list of file formats supported by Zerox
+---
+
+Zerox supports a wide variety of document formats, automatically detecting and converting them to images for processing by vision models.
+
+## Image Formats
+
+Native image formats are processed directly without conversion.
+
+### PNG (Portable Network Graphics)
+
+- **Extensions**: `.png`
+- **Processing**: Direct processing, no conversion needed
+- **Best for**: Screenshots, diagrams, documents with transparency
+- **Notes**: Recommended format for best quality
+
+### JPEG/JPG
+
+- **Extensions**: `.jpg`, `.jpeg`
+- **Processing**: Direct processing, no conversion needed
+- **Best for**: Photographs, scanned documents
+- **Notes**: Lossy format, may affect text recognition quality
+
+### HEIC (High Efficiency Image Container)
+
+- **Extensions**: `.heic`
+- **Processing**: Automatically converted to JPEG
+- **Best for**: iPhone photos, modern mobile devices
+- **Notes**: Conversion maintains maximum quality (quality: 1)
+
+<Info>
+All image formats are automatically compressed to stay under the `maxImageSize` limit (default: 15MB) while maintaining visual quality.
+</Info>
+
+## PDF (Portable Document Format)
+
+- **Extensions**: `.pdf`
+- **Processing**: Converted to high-resolution images (one per page)
+- **Configuration options**:
+  - `imageDensity`: DPI for conversion (default: 300)
+  - `imageHeight`: Target height in pixels (default: 2048)
+  - `imageFormat`: Output format - 'png' or 'jpeg' (default: 'png')
+  - `pagesToConvertAsImages`: Specific pages to process (default: all pages)
+- **Best for**: Multi-page documents, reports, forms, invoices
+- **Notes**: Uses pdf2pic for conversion, falls back to Poppler (pdftoppm) if needed
+
+### PDF Processing Details
+
+Zerox includes several PDF-specific features:
+
+**Magic Number Validation:**
+- Verifies files are true PDFs by checking for `%PDF` header
+- Detects legacy Compound File Binary (CFB) formats
+- Ensures proper routing for Office files misidentified as PDFs
+
+**Aspect Ratio Handling:**
+- Automatically detects tall/wide pages (threshold: 5:1 ratio)
+- Adjusts image dimensions to prevent distortion
+- Maintains aspect ratio during conversion
+
+**Page Selection:**
+```typescript
+// Process specific pages
+await zerox({
+  filePath: 'document.pdf',
+  pagesToConvertAsImages: [1, 3, 5], // Process pages 1, 3, and 5
+  // ...
+});
+
+// Process single page
+await zerox({
+  filePath: 'document.pdf',
+  pagesToConvertAsImages: 3, // Only process page 3
+  // ...
+});
+
+// Process all pages (default)
+await zerox({
+  filePath: 'document.pdf',
+  pagesToConvertAsImages: -1, // All pages
+  // ...
+});
+```
+
+<Warning>
+Page numbers are 1-indexed. Invalid page numbers are automatically filtered out.
+</Warning>
+
+## Microsoft Office Formats
+
+Office documents are converted to PDF, then processed through the PDF pipeline.
+
+### Word Documents
+
+- **Extensions**: `.docx`, `.doc`
+- **Processing**: LibreOffice conversion → PDF → Images
+- **Best for**: Text-heavy documents, reports, letters
+- **Supported elements**: Text, tables, images, headers, footers
+
+### PowerPoint Presentations
+
+- **Extensions**: `.pptx`, `.ppt`
+- **Processing**: LibreOffice conversion → PDF → Images
+- **Best for**: Slide decks, presentations
+- **Supported elements**: Slides, text, images, charts, shapes
+
+### Other LibreOffice-Compatible Formats
+
+Any format supported by LibreOffice can be processed:
+
+- OpenDocument formats (`.odt`, `.odp`, etc.)
+- Rich Text Format (`.rtf`)
+- Legacy Office formats (`.doc`, `.ppt`, `.xls`)
+
+<Note>
+LibreOffice must be installed on the system for Office document conversion. The conversion uses the `libreoffice-convert` package.
+</Note>
+
+## Excel & Spreadsheet Formats
+
+Excel files receive special handling and bypass image conversion entirely.
+
+### Excel Workbooks
+
+- **Extensions**: `.xlsx`, `.xls`, `.xlsm`, `.xlsb`
+- **Processing**: Direct conversion to HTML tables
+- **Structure**: Each sheet becomes a separate page
+- **Best for**: Tabular data, financial reports, datasets
+
+### Processing Details
+
+Excel files are converted to structured HTML:
+
+```html
+<h2>Sheet: Sheet1</h2>
+<table class="zerox-excel-table">
+  <tr>
+    <th>Header 1</th>
+    <th>Header 2</th>
+  </tr>
+  <tr>
+    <td>Cell 1</td>
+    <td>Cell 2</td>
+  </tr>
+</table>
+```
+
+**Features:**
+- Preserves cell structure
+- First row treated as headers (`<th>` tags)
+- Empty cells handled gracefully
+- Multi-sheet support
+- Cell styling metadata preserved where possible
+
+**Output Format:**
+```typescript
+const result = await zerox({
+  filePath: 'spreadsheet.xlsx',
+  // ...
+});
+
+// Each sheet is a separate page
+result.pages.forEach((page, i) => {
+  console.log(`Sheet ${i + 1}:`, page.content); // HTML table
+  console.log(`Length: ${page.contentLength}`);
+});
+```
+
+<Info>
+Excel files don't use vision models for OCR - they're converted directly to HTML. This is faster and more accurate for structured data.
+</Info>
+
+## Remote Files
+
+Zerox supports files from remote URLs:
+
+```typescript
+await zerox({
+  filePath: 'https://example.com/document.pdf',
+  // ...
+});
+```
+
+**Supported protocols:**
+- HTTP
+- HTTPS
+
+**Features:**
+- Automatic download to temporary directory
+- MIME type detection from response headers
+- Streaming download for large files
+- Proper error handling for network issues
+
+<Warning>
+Remote files must be publicly accessible. Authentication and custom headers are not currently supported.
+</Warning>
+
+## File Size Considerations
+
+### Image Compression
+
+All images (including PDF-converted pages) are compressed if needed:
+
+- **Parameter**: `maxImageSize` (in megabytes)
+- **Default**: 15 MB
+- **Behavior**: Automatically compresses images exceeding the limit
+- **Quality**: Maintains visual quality while reducing size
+
+```typescript
+await zerox({
+  filePath: 'large-document.pdf',
+  maxImageSize: 10, // Compress to max 10MB per image
+  // ...
+});
+```
+
+### Best Practices
+
+<Note>
+**For best results:**
+- Use PNG format for text-heavy documents
+- Use JPEG for photograph-heavy documents
+- Set appropriate `imageDensity` (higher = more detail, larger files)
+- Adjust `imageHeight` based on document complexity
+- Use `pagesToConvertAsImages` to process only needed pages
+</Note>
+
+## Format Detection
+
+Zerox uses multiple methods to detect file formats:
+
+1. **File Extension**: Primary detection method from path or URL
+2. **MIME Type**: From HTTP headers (for URLs) or file-type library
+3. **Magic Numbers**: Binary inspection for PDFs and CFB files
+4. **Fallback**: Extension from MIME type lookup
+
+```typescript
+// Example: Detection flow for ambiguous file
+// 1. Check extension from URL: document.pdf
+// 2. Verify PDF magic number: %PDF
+// 3. Check for CFB format: not CFB
+// 4. Route to PDF pipeline
+```
+
+## Unsupported Formats
+
+Formats not explicitly supported will fail with an error:
+
+- Audio files (`.mp3`, `.wav`, etc.)
+- Video files (`.mp4`, `.avi`, etc.)
+- Archive files (`.zip`, `.tar`, etc.)
+- Executable files
+- Encrypted or password-protected documents
+
+<Warning>
+Password-protected PDFs and encrypted Office documents cannot be processed. Remove protection before processing.
+</Warning>
+
+## Format-Specific Tips
+
+### PDFs
+- Ensure fonts are embedded for best OCR results
+- Scanned PDFs work well but may require higher `imageDensity`
+- Use `correctOrientation: true` for rotated pages
+
+### Office Documents
+- Complex formatting may not convert perfectly
+- Test conversion quality with sample documents
+- Consider exporting to PDF directly if layout is critical
+
+### Excel Files
+- Works best with clean, structured data
+- Merged cells are supported
+- Formulas are not evaluated (only values are extracted)
+- Charts and images are not included in HTML output
+
+### Images
+- Higher resolution provides better OCR accuracy
+- Remove backgrounds for better text detection
+- Ensure sufficient contrast for text recognition

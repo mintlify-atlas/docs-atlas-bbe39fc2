@@ -1,0 +1,249 @@
+---
+title: 'Azure OpenAI'
+description: 'Configure Zerox with Azure OpenAI models for document OCR'
+---
+
+## Overview
+
+Azure OpenAI Service provides access to OpenAI's models through Microsoft Azure infrastructure. Zerox supports Azure OpenAI deployments for document processing with enhanced security and compliance features.
+
+## Credentials
+
+Azure OpenAI requires both an API key and an endpoint URL:
+
+<ParamField path="credentials.apiKey" type="string" required>
+  Your Azure OpenAI API key. Found in the Azure Portal under your OpenAI resource's "Keys and Endpoint" section.
+</ParamField>
+
+<ParamField path="credentials.endpoint" type="string" required>
+  Your Azure OpenAI endpoint URL. Format: `https://your-resource-name.openai.azure.com`
+</ParamField>
+
+### Environment Variables
+
+```bash
+export AZURE_API_KEY="your-azure-api-key"
+export AZURE_ENDPOINT="https://your-resource-name.openai.azure.com"
+```
+
+## Supported Models
+
+Azure OpenAI supports the same vision models as OpenAI, but they must be deployed in your Azure resource:
+
+| Model | Deployment Name | Description |
+|-------|-----------------|-------------|
+| GPT-4.1 | `gpt-4.1` | Latest GPT-4.1 model with vision capabilities |
+| GPT-4.1 Mini | `gpt-4.1-mini` | Smaller, faster GPT-4.1 model |
+| GPT-4o | `gpt-4o` | Optimized GPT-4 model with vision |
+| GPT-4o Mini | `gpt-4o-mini` | Smaller, cost-effective GPT-4o model |
+
+<Note>
+The `model` parameter in Zerox should match your Azure deployment name, not the base model name. For example, if you deployed `gpt-4o` with the name `my-gpt4o-deployment`, use that deployment name.
+</Note>
+
+## Configuration
+
+### Basic Example
+
+```typescript
+import { zerox } from "zerox";
+import { ModelOptions, ModelProvider } from "zerox/node-zerox/dist/types";
+
+const result = await zerox({
+  filePath: "path/to/document.pdf",
+  modelProvider: ModelProvider.AZURE,
+  model: ModelOptions.OPENAI_GPT_4O,
+  credentials: {
+    apiKey: process.env.AZURE_API_KEY,
+    endpoint: process.env.AZURE_ENDPOINT,
+  },
+});
+```
+
+### With Custom Deployment Name
+
+```typescript
+import { zerox } from "zerox";
+import { ModelProvider } from "zerox/node-zerox/dist/types";
+
+const result = await zerox({
+  filePath: "path/to/document.pdf",
+  modelProvider: ModelProvider.AZURE,
+  model: "my-gpt4o-deployment", // Your Azure deployment name
+  credentials: {
+    apiKey: process.env.AZURE_API_KEY,
+    endpoint: process.env.AZURE_ENDPOINT,
+  },
+});
+```
+
+## LLM Parameters
+
+Azure OpenAI models support the following optional parameters:
+
+<ParamField path="llmParams.temperature" type="number" default="1">
+  Controls randomness in the output. Values range from 0 to 2. Lower values make output more focused and deterministic.
+</ParamField>
+
+<ParamField path="llmParams.maxTokens" type="number" default="4096">
+  Maximum number of tokens to generate in the completion.
+</ParamField>
+
+<ParamField path="llmParams.topP" type="number" default="1">
+  Nucleus sampling parameter. An alternative to temperature sampling. Values range from 0 to 1.
+</ParamField>
+
+<ParamField path="llmParams.frequencyPenalty" type="number" default="0">
+  Number between -2.0 and 2.0. Positive values penalize tokens based on their frequency in the text so far.
+</ParamField>
+
+<ParamField path="llmParams.presencePenalty" type="number" default="0">
+  Number between -2.0 and 2.0. Positive values penalize tokens based on whether they appear in the text so far.
+</ParamField>
+
+<ParamField path="llmParams.logprobs" type="boolean" default="false">
+  Whether to return log probabilities of the output tokens. Useful for confidence scoring.
+</ParamField>
+
+### Example with Parameters
+
+```typescript
+import { zerox } from "zerox";
+import { ModelOptions, ModelProvider } from "zerox/node-zerox/dist/types";
+
+const result = await zerox({
+  filePath: "path/to/document.pdf",
+  modelProvider: ModelProvider.AZURE,
+  model: ModelOptions.OPENAI_GPT_4O_MINI,
+  credentials: {
+    apiKey: process.env.AZURE_API_KEY,
+    endpoint: process.env.AZURE_ENDPOINT,
+  },
+  llmParams: {
+    temperature: 0.3,
+    maxTokens: 4096,
+    topP: 0.9,
+    logprobs: true,
+  },
+});
+```
+
+## Data Extraction
+
+Azure OpenAI models support structured data extraction using JSON schemas:
+
+```typescript
+import { zerox } from "zerox";
+import { ModelOptions, ModelProvider } from "zerox/node-zerox/dist/types";
+
+const schema = {
+  type: "object",
+  properties: {
+    company_name: { type: "string" },
+    registration_number: { type: "string" },
+    address: { type: "string" },
+    officers: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          title: { type: "string" },
+        },
+      },
+    },
+  },
+};
+
+const result = await zerox({
+  filePath: "company-filing.pdf",
+  modelProvider: ModelProvider.AZURE,
+  model: ModelOptions.OPENAI_GPT_4O,
+  credentials: {
+    apiKey: process.env.AZURE_API_KEY,
+    endpoint: process.env.AZURE_ENDPOINT,
+  },
+  extractOnly: true,
+  schema: schema,
+});
+
+console.log(result.extracted);
+```
+
+## API Version
+
+<Info>
+Zerox uses Azure OpenAI API version `2024-10-21` by default. This is automatically configured and does not need to be specified.
+</Info>
+
+## Error Handling
+
+```typescript
+import { zerox } from "zerox";
+import { ErrorMode, ModelProvider } from "zerox/node-zerox/dist/types";
+
+try {
+  const result = await zerox({
+    filePath: "document.pdf",
+    modelProvider: ModelProvider.AZURE,
+    model: "gpt-4o",
+    credentials: {
+      apiKey: process.env.AZURE_API_KEY,
+      endpoint: process.env.AZURE_ENDPOINT,
+    },
+    errorMode: ErrorMode.THROW,
+  });
+} catch (error) {
+  console.error("OCR failed:", error);
+}
+```
+
+<Warning>
+Before using Azure OpenAI with Zerox:
+- Ensure you have deployed a vision-capable model in your Azure OpenAI resource
+- Verify your deployment name matches the `model` parameter
+- Confirm your resource has sufficient quota for vision API requests
+- Check that your endpoint URL is correct and accessible
+</Warning>
+
+## Azure-Specific Considerations
+
+### Deployment Requirements
+
+You must create a deployment in your Azure OpenAI resource before using it with Zerox:
+
+1. Navigate to Azure OpenAI Studio
+2. Create a new deployment
+3. Select a vision-capable model (GPT-4o, GPT-4o-mini, etc.)
+4. Use the deployment name (not the model name) in Zerox configuration
+
+### Regional Availability
+
+Vision models may not be available in all Azure regions. Check the [Azure OpenAI Service regions documentation](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models) for current availability.
+
+### Quota Management
+
+Azure OpenAI uses tokens-per-minute (TPM) quotas. Monitor your usage to avoid rate limiting:
+
+```typescript
+const result = await zerox({
+  filePath: "document.pdf",
+  modelProvider: ModelProvider.AZURE,
+  model: "gpt-4o",
+  credentials: {
+    apiKey: process.env.AZURE_API_KEY,
+    endpoint: process.env.AZURE_ENDPOINT,
+  },
+  concurrency: 5, // Limit concurrent requests
+});
+
+console.log(`Tokens used: ${result.inputTokens + result.outputTokens}`);
+```
+
+## Best Practices
+
+- Use managed identities instead of API keys for production deployments
+- Monitor your Azure costs through the Azure Portal
+- Set appropriate `concurrency` values to stay within quota limits
+- Use `gpt-4o-mini` deployments for cost optimization
+- Enable diagnostic logging in Azure for troubleshooting

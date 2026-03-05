@@ -1,0 +1,586 @@
+---
+title: Model Providers
+description: Configure OpenAI, Azure, Bedrock, and Gemini for Zerox
+---
+
+Zerox supports multiple vision model providers, each with specific configuration requirements and capabilities.
+
+## Supported Providers
+
+Zerox integrates with four major AI providers:
+
+- **OpenAI**: GPT-4 Vision models (GPT-4o, GPT-4.1)
+- **Azure OpenAI**: Enterprise deployment of OpenAI models
+- **AWS Bedrock**: Anthropic Claude models via AWS
+- **Google AI**: Gemini vision models
+
+## OpenAI
+
+The default and most straightforward provider to configure.
+
+### Available Models
+
+- `gpt-4.1` - Latest GPT-4 model
+- `gpt-4.1-mini` - Faster, more cost-effective option
+- `gpt-4o` - Optimized model (default)
+- `gpt-4o-mini` - Compact version
+
+### Configuration
+
+<Tabs>
+  <Tab title="Basic Setup">
+    ```typescript
+    import { zerox } from 'zerox';
+    import { ModelProvider, ModelOptions } from 'zerox';
+
+    const result = await zerox({
+      filePath: 'document.pdf',
+      modelProvider: ModelProvider.OPENAI,
+      credentials: {
+        apiKey: process.env.OPENAI_API_KEY || '',
+      },
+      model: ModelOptions.OPENAI_GPT_4O,
+    });
+    ```
+  </Tab>
+
+  <Tab title="With Custom Parameters">
+    ```typescript
+    const result = await zerox({
+      filePath: 'document.pdf',
+      modelProvider: ModelProvider.OPENAI,
+      credentials: {
+        apiKey: process.env.OPENAI_API_KEY || '',
+      },
+      model: ModelOptions.OPENAI_GPT_4O,
+      llmParams: {
+        temperature: 0.1,
+        maxTokens: 4096,
+        topP: 1,
+        frequencyPenalty: 0,
+        presencePenalty: 0,
+        logprobs: true, // Enable token probability logging
+      },
+    });
+    ```
+  </Tab>
+
+  <Tab title="Shorthand (Deprecated)">
+    ```typescript
+    // Simplified syntax - still supported but deprecated
+    const result = await zerox({
+      filePath: 'document.pdf',
+      openaiAPIKey: process.env.OPENAI_API_KEY,
+      // modelProvider defaults to OPENAI
+    });
+    ```
+    
+    <Warning>
+    The `openaiAPIKey` parameter is deprecated. Use `credentials` with `modelProvider` instead.
+    </Warning>
+  </Tab>
+</Tabs>
+
+### OpenAI-Specific Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `temperature` | number | 1.0 | Randomness (0-2) |
+| `maxTokens` | number | 4096 | Maximum output tokens |
+| `topP` | number | 1.0 | Nucleus sampling |
+| `frequencyPenalty` | number | 0 | Reduce repetition (-2 to 2) |
+| `presencePenalty` | number | 0 | Encourage new topics (-2 to 2) |
+| `logprobs` | boolean | false | Return token probabilities |
+
+<Info>
+OpenAI uses the `https://api.openai.com/v1/chat/completions` endpoint with the Chat Completions API.
+</Info>
+
+## Azure OpenAI
+
+Enterprise-grade deployment with additional compliance and security features.
+
+### Available Models
+
+Azure deployments use the same model names as OpenAI:
+- `gpt-4.1`
+- `gpt-4.1-mini`
+- `gpt-4o` (recommended)
+- `gpt-4o-mini`
+
+### Configuration
+
+<Tabs>
+  <Tab title="Basic Setup">
+    ```typescript
+    import { zerox } from 'zerox';
+    import { ModelProvider, ModelOptions } from 'zerox';
+
+    const result = await zerox({
+      filePath: 'document.pdf',
+      modelProvider: ModelProvider.AZURE,
+      credentials: {
+        apiKey: process.env.AZURE_API_KEY || '',
+        endpoint: process.env.AZURE_ENDPOINT || '',
+      },
+      model: ModelOptions.OPENAI_GPT_4O, // Your deployment name
+    });
+    ```
+  </Tab>
+
+  <Tab title="With Environment Variables">
+    ```bash
+    # .env file
+    AZURE_API_KEY=your_api_key_here
+    AZURE_ENDPOINT=https://your-resource.openai.azure.com
+    ```
+
+    ```typescript
+    const result = await zerox({
+      filePath: 'document.pdf',
+      modelProvider: ModelProvider.AZURE,
+      credentials: {
+        apiKey: process.env.AZURE_API_KEY || '',
+        endpoint: process.env.AZURE_ENDPOINT || '',
+      },
+      model: 'gpt-4o', // Must match your deployment name
+      llmParams: {
+        temperature: 0.1,
+        maxTokens: 4096,
+        logprobs: true,
+      },
+    });
+    ```
+  </Tab>
+
+  <Tab title="Full Example">
+    ```typescript
+    import { zerox } from 'zerox';
+    import { ModelProvider, ModelOptions } from 'zerox';
+
+    async function processWithAzure() {
+      try {
+        const result = await zerox({
+          filePath: 'https://example.com/invoice.pdf',
+          modelProvider: ModelProvider.AZURE,
+          credentials: {
+            apiKey: process.env.AZURE_API_KEY || '',
+            endpoint: process.env.AZURE_ENDPOINT || '',
+          },
+          model: ModelOptions.OPENAI_GPT_4O,
+          llmParams: {
+            temperature: 0,
+            maxTokens: 8192,
+          },
+        });
+        
+        console.log('Pages processed:', result.pages.length);
+        return result;
+      } catch (error) {
+        console.error('Azure processing error:', error);
+        throw error;
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Azure-Specific Details
+
+**API Version**: Fixed at `2024-10-21`
+
+**Endpoint Format**: `https://{resource-name}.openai.azure.com`
+
+**Deployment Name**: The `model` parameter should match your Azure deployment name, not necessarily the underlying model name.
+
+<Note>
+Azure uses the official `AzureOpenAI` client from the OpenAI SDK. Authentication and API versioning are handled automatically.
+</Note>
+
+## AWS Bedrock
+
+Access Anthropic Claude models through AWS infrastructure.
+
+### Available Models
+
+**Claude 3.5 (Latest):**
+- `anthropic.claude-3-5-haiku-20241022-v1:0`
+- `anthropic.claude-3-5-sonnet-20240620-v1:0`
+- `anthropic.claude-3-5-sonnet-20241022-v2:0` (recommended)
+
+**Claude 3:**
+- `anthropic.claude-3-haiku-20240307-v1:0`
+- `anthropic.claude-3-opus-20240229-v1:0`
+- `anthropic.claude-3-sonnet-20240229-v1:0`
+
+### Configuration
+
+<Tabs>
+  <Tab title="With IAM Credentials">
+    ```typescript
+    import { zerox } from 'zerox';
+    import { ModelProvider, ModelOptions } from 'zerox';
+
+    const result = await zerox({
+      filePath: 'document.pdf',
+      modelProvider: ModelProvider.BEDROCK,
+      credentials: {
+        region: process.env.AWS_REGION || 'us-east-1',
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+        sessionToken: process.env.AWS_SESSION_TOKEN, // Optional
+      },
+      model: ModelOptions.BEDROCK_CLAUDE_3_SONNET_2024_10,
+    });
+    ```
+  </Tab>
+
+  <Tab title="With Default Credentials">
+    ```typescript
+    // Uses AWS SDK default credential chain
+    // (environment variables, IAM role, etc.)
+    const result = await zerox({
+      filePath: 'document.pdf',
+      modelProvider: ModelProvider.BEDROCK,
+      credentials: {
+        region: 'us-east-1',
+        // accessKeyId and secretAccessKey omitted
+        // SDK will use default credential provider chain
+      },
+      model: ModelOptions.BEDROCK_CLAUDE_3_SONNET_2024_10,
+    });
+    ```
+  </Tab>
+
+  <Tab title="Full Example">
+    ```typescript
+    import { zerox } from 'zerox';
+    import { ModelProvider, ModelOptions } from 'zerox';
+
+    async function processWithBedrock() {
+      const schema = {
+        type: 'object',
+        properties: {
+          invoice_number: { type: 'string' },
+          total: { type: 'number' },
+          date: { type: 'string' },
+        },
+        required: ['invoice_number', 'total'],
+      };
+
+      const result = await zerox({
+        filePath: 'invoice.pdf',
+        modelProvider: ModelProvider.BEDROCK,
+        credentials: {
+          region: process.env.AWS_REGION || 'us-east-1',
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+        },
+        model: ModelOptions.BEDROCK_CLAUDE_3_SONNET_2024_10,
+        extractOnly: true,
+        schema,
+        llmParams: {
+          temperature: 0,
+          maxTokens: 4096,
+        },
+      });
+
+      console.log('Extracted data:', result.extracted);
+      return result;
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Bedrock-Specific Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `temperature` | number | 1.0 | Randomness (0-1) |
+| `maxTokens` | number | 4096 | Maximum output tokens |
+| `topP` | number | 1.0 | Nucleus sampling |
+| `frequencyPenalty` | number | 0 | Reduce repetition |
+| `presencePenalty` | number | 0 | Encourage new topics |
+
+<Note>
+Bedrock uses the Anthropic Messages API format. The `anthropic_version` is automatically set to `bedrock-2023-05-31`.
+</Note>
+
+<Warning>
+Bedrock does not support logprobs. The parameter is ignored if provided.
+</Warning>
+
+## Google Gemini
+
+Google's latest multimodal AI models with native vision capabilities.
+
+### Available Models
+
+**Gemini 2 (Latest):**
+- `gemini-2.5-pro-preview-03-25` - Most capable
+- `gemini-2.0-flash-001` - Fastest, recommended
+- `gemini-2.0-flash-lite-preview-02-05` - Ultra-fast, lightweight
+
+**Gemini 1.5:**
+- `gemini-1.5-flash` - Fast and efficient
+- `gemini-1.5-flash-8b` - Compact version
+- `gemini-1.5-pro` - High performance
+
+### Configuration
+
+<Tabs>
+  <Tab title="Basic Setup">
+    ```typescript
+    import { zerox } from 'zerox';
+    import { ModelProvider, ModelOptions } from 'zerox';
+
+    const result = await zerox({
+      filePath: 'document.pdf',
+      modelProvider: ModelProvider.GOOGLE,
+      credentials: {
+        apiKey: process.env.GEMINI_API_KEY || '',
+      },
+      model: ModelOptions.GOOGLE_GEMINI_2_FLASH,
+    });
+    ```
+  </Tab>
+
+  <Tab title="With Custom Parameters">
+    ```typescript
+    const result = await zerox({
+      filePath: 'document.pdf',
+      modelProvider: ModelProvider.GOOGLE,
+      credentials: {
+        apiKey: process.env.GEMINI_API_KEY || '',
+      },
+      model: ModelOptions.GOOGLE_GEMINI_2_FLASH,
+      llmParams: {
+        temperature: 0.1,
+        maxOutputTokens: 8192,
+        topP: 0.95,
+      },
+    });
+    ```
+  </Tab>
+
+  <Tab title="Extraction Mode">
+    ```typescript
+    const schema = {
+      type: 'object',
+      properties: {
+        title: { type: 'string' },
+        author: { type: 'string' },
+        pages: { type: 'integer' },
+      },
+    };
+
+    const result = await zerox({
+      filePath: 'book-cover.png',
+      modelProvider: ModelProvider.GOOGLE,
+      credentials: {
+        apiKey: process.env.GEMINI_API_KEY || '',
+      },
+      model: ModelOptions.GOOGLE_GEMINI_2_FLASH,
+      extractOnly: true,
+      schema,
+    });
+
+    console.log('Extracted:', result.extracted);
+    ```
+  </Tab>
+</Tabs>
+
+### Google-Specific Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `temperature` | number | 1.0 | Randomness (0-2) |
+| `maxOutputTokens` | number | 4096 | Maximum output tokens |
+| `topP` | number | 1.0 | Nucleus sampling |
+| `frequencyPenalty` | number | 0 | Reduce repetition |
+| `presencePenalty` | number | 0 | Encourage new topics |
+
+<Info>
+Google models use a different parameter name: `maxOutputTokens` instead of `maxTokens`. Zerox handles this conversion automatically.
+</Info>
+
+### Gemini-Specific Features
+
+**Image Positioning**: For best results with Gemini, images are placed before text prompts in the message content.
+
+**JSON Mode**: Extraction mode automatically sets:
+- `responseMimeType: 'application/json'`
+- `responseSchema: <your schema>`
+
+**Token Counting**: Uses `promptTokenCount` and `candidatesTokenCount` from usage metadata.
+
+<Warning>
+Gemini does not support logprobs. The parameter is ignored if provided.
+</Warning>
+
+## Comparing Providers
+
+### Feature Support Matrix
+
+| Feature | OpenAI | Azure | Bedrock | Gemini |
+|---------|--------|-------|---------|--------|
+| OCR Mode | ✅ | ✅ | ✅ | ✅ |
+| Extraction Mode | ✅ | ✅ | ✅ | ✅ |
+| Hybrid Mode | ✅ | ✅ | ✅ | ✅ |
+| Logprobs | ✅ | ✅ | ❌ | ❌ |
+| JSON Schema | ✅ | ✅ | ✅ (via tools) | ✅ |
+| Custom Prompts | ✅ | ✅ | ✅ | ✅ |
+
+### Performance Considerations
+
+**Speed:**
+- Fastest: Gemini 2.0 Flash, GPT-4o-mini
+- Balanced: Claude 3.5 Sonnet, GPT-4o
+- Highest Quality: GPT-4.1, Claude 3.5 Sonnet v2
+
+**Cost:**
+- Most economical: Gemini Flash 8B, GPT-4o-mini
+- Mid-range: Claude 3.5 Haiku, Gemini 1.5 Flash
+- Premium: GPT-4.1, Claude 3 Opus
+
+**Context Length:**
+- Largest: Gemini models (up to 1M tokens input)
+- Standard: OpenAI and Claude (128K+ tokens)
+
+## Advanced Configuration
+
+### Separate OCR and Extraction Models
+
+Use different providers for OCR and extraction:
+
+```typescript
+const result = await zerox({
+  filePath: 'document.pdf',
+  
+  // OCR with OpenAI
+  modelProvider: ModelProvider.OPENAI,
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  model: ModelOptions.OPENAI_GPT_4O,
+  llmParams: { temperature: 0 },
+  
+  // Extraction with Claude
+  extractionModelProvider: ModelProvider.BEDROCK,
+  extractionCredentials: {
+    region: 'us-east-1',
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+  extractionModel: ModelOptions.BEDROCK_CLAUDE_3_SONNET_2024_10,
+  extractionLlmParams: { temperature: 0, maxTokens: 8192 },
+  
+  schema: { /* ... */ },
+});
+```
+
+<Note>
+This allows you to optimize for cost and performance by using faster models for OCR and more accurate models for extraction.
+</Note>
+
+### Custom Model Function
+
+Implement your own model integration:
+
+```typescript
+import { CompletionResponse } from 'zerox';
+
+const customModel = async ({
+  buffers,
+  image,
+  maintainFormat,
+  pageNumber,
+  priorPage,
+}: {
+  buffers: Buffer[];
+  image: string;
+  maintainFormat: boolean;
+  pageNumber: number;
+  priorPage: string;
+}): Promise<CompletionResponse> => {
+  // Your custom vision model API call
+  const response = await yourCustomAPI(buffers[0]);
+  
+  return {
+    content: response.text,
+    inputTokens: response.usage.input,
+    outputTokens: response.usage.output,
+  };
+};
+
+const result = await zerox({
+  filePath: 'document.pdf',
+  customModelFunction: customModel,
+  // credentials not required with custom function
+});
+```
+
+## Best Practices
+
+<Note>
+**Provider Selection Guidelines:**
+
+1. **OpenAI**: Best for general use, reliable, good documentation
+2. **Azure**: Enterprise requirements, compliance, SLAs
+3. **Bedrock**: AWS ecosystem integration, cost optimization
+4. **Gemini**: Large documents, cost-sensitive workloads
+</Note>
+
+<Warning>
+**Security Considerations:**
+
+- Never commit API keys to version control
+- Use environment variables or secret management services
+- Rotate keys regularly
+- Monitor usage and set billing alerts
+- Use least-privilege IAM policies (Bedrock)
+</Warning>
+
+## Troubleshooting
+
+### Common Issues
+
+**OpenAI: "Invalid API Key"**
+- Verify key is active at platform.openai.com
+- Check for extra whitespace in environment variable
+- Ensure key has proper permissions
+
+**Azure: "Deployment not found"**
+- Verify `model` matches your deployment name exactly
+- Check endpoint URL format
+- Confirm deployment is in same region as endpoint
+
+**Bedrock: "Access Denied"**
+- Enable Bedrock model access in AWS Console
+- Verify IAM permissions include `bedrock:InvokeModel`
+- Check region availability for specific models
+- Confirm credentials are for correct AWS account
+
+**Gemini: "API Key not valid"**
+- Generate key at ai.google.dev
+- Verify API is enabled in Google Cloud Console
+- Check billing account is active
+
+### Error Handling
+
+Wrap provider calls with try-catch:
+
+```typescript
+try {
+  const result = await zerox({
+    filePath: 'document.pdf',
+    // ... provider config
+  });
+} catch (error) {
+  if (error.message.includes('Invalid API Key')) {
+    console.error('Check your credentials');
+  } else if (error.message.includes('rate limit')) {
+    console.error('Rate limit exceeded, retry later');
+  } else {
+    console.error('Processing error:', error);
+  }
+}
+```

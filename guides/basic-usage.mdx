@@ -1,0 +1,242 @@
+---
+title: Basic Usage
+description: Get started with Zerox for vision-powered OCR
+---
+
+## Overview
+
+Zerox is a vision-powered OCR SDK that converts documents (PDFs, images, Excel files) to markdown using large language models. This guide covers the basic setup and usage.
+
+## Installation
+
+<Tabs>
+  <Tab title="Node.js">
+    ```bash
+    npm install zerox-ocr
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```bash
+    pip install zerox-ocr
+    ```
+  </Tab>
+</Tabs>
+
+## Basic Example
+
+<Tabs>
+  <Tab title="Node.js">
+    ```javascript
+    import { zerox } from 'zerox-ocr';
+
+    const result = await zerox({
+      filePath: 'path/to/document.pdf',
+      model: 'gpt-4o',
+      credentials: {
+        apiKey: process.env.OPENAI_API_KEY
+      }
+    });
+
+    console.log(result.pages);
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    from zerox import zerox
+
+    result = await zerox(
+        file_path="path/to/document.pdf",
+        model="gpt-4o",
+        credentials={
+            "api_key": os.getenv("OPENAI_API_KEY")
+        }
+    )
+
+    print(result.pages)
+    ```
+  </Tab>
+</Tabs>
+
+## File Input Options
+
+Zerox accepts multiple input formats:
+
+### Local Files
+
+Provide a local file path:
+
+```javascript
+const result = await zerox({
+  filePath: './documents/invoice.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY }
+});
+```
+
+### Remote URLs
+
+Provide a URL to download the file:
+
+```javascript
+const result = await zerox({
+  filePath: 'https://example.com/document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY }
+});
+```
+
+### Supported File Types
+
+- **PDF**: `.pdf`
+- **Images**: `.png`, `.jpg`, `.jpeg`, `.heic`
+- **Documents**: Word documents (converted to PDF)
+- **Spreadsheets**: Excel files (`.xlsx`, `.xls`)
+
+## Required Parameters
+
+<ParamField path="filePath" type="string" required>
+  Path to the file (local or URL) to process
+</ParamField>
+
+<ParamField path="credentials" type="object" required>
+  API credentials for the model provider. For OpenAI:
+  ```javascript
+  { apiKey: "your-api-key" }
+  ```
+</ParamField>
+
+## Basic Configuration
+
+<ParamField path="model" type="string" default="gpt-4o">
+  The vision model to use. Options include:
+  - `gpt-4o` (default)
+  - `gpt-4o-mini`
+  - `gpt-4.1`
+  - `gpt-4.1-mini`
+  - Claude models via Bedrock
+  - Gemini models via Google AI
+</ParamField>
+
+<ParamField path="modelProvider" type="string" default="OPENAI">
+  The model provider. Options:
+  - `OPENAI` (default)
+  - `AZURE`
+  - `BEDROCK`
+  - `GOOGLE`
+</ParamField>
+
+<ParamField path="outputDir" type="string">
+  Optional directory to save the output markdown file
+</ParamField>
+
+## Output Structure
+
+The `zerox()` function returns a `ZeroxOutput` object:
+
+```typescript
+interface ZeroxOutput {
+  completionTime: number;      // Time taken in milliseconds
+  extracted: Record<string, unknown> | null;  // Extracted data (if schema provided)
+  fileName: string;            // Processed file name
+  inputTokens: number;         // Total input tokens used
+  outputTokens: number;        // Total output tokens used
+  pages: Page[];               // Array of processed pages
+  summary: Summary;            // Processing summary
+}
+```
+
+### Page Structure
+
+Each page in the `pages` array contains:
+
+```typescript
+interface Page {
+  content?: string;           // Markdown content
+  contentLength?: number;     // Length of content
+  page: number;               // Page number (1-indexed)
+  status: "SUCCESS" | "ERROR";  // Processing status
+  error?: string;             // Error message if failed
+  inputTokens?: number;       // Tokens used for this page
+  outputTokens?: number;      // Tokens generated for this page
+}
+```
+
+### Summary Structure
+
+```typescript
+interface Summary {
+  totalPages: number;
+  ocr: {
+    successful: number;
+    failed: number;
+  } | null;
+  extracted: {
+    successful: number;
+    failed: number;
+  } | null;
+}
+```
+
+## Example Output
+
+```javascript
+const result = await zerox({
+  filePath: 'invoice.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY }
+});
+
+console.log(`Processed ${result.summary.totalPages} pages`);
+console.log(`Completion time: ${result.completionTime}ms`);
+console.log(`Tokens used: ${result.inputTokens + result.outputTokens}`);
+
+// Access individual pages
+result.pages.forEach(page => {
+  if (page.status === 'SUCCESS') {
+    console.log(`Page ${page.page}: ${page.content?.substring(0, 100)}...`);
+  }
+});
+
+// Get full document as markdown
+const fullMarkdown = result.pages
+  .map(page => page.content)
+  .join('\n\n');
+```
+
+## Writing Output to File
+
+To automatically save the markdown output:
+
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  outputDir: './output',
+  credentials: { apiKey: process.env.OPENAI_API_KEY }
+});
+
+// File saved to: ./output/{fileName}.md
+console.log(`Saved to: ./output/${result.fileName}.md`);
+```
+
+## Temporary Files
+
+<ParamField path="tempDir" type="string" default="os.tmpdir()">
+  Directory for temporary files during processing
+</ParamField>
+
+<ParamField path="cleanup" type="boolean" default={true}>
+  Whether to clean up temporary files after processing
+</ParamField>
+
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  tempDir: './temp',
+  cleanup: false,  // Keep temp files for debugging
+  credentials: { apiKey: process.env.OPENAI_API_KEY }
+});
+```
+
+## Next Steps
+
+- [Data Extraction](/guides/data-extraction) - Extract structured data using schemas
+- [Advanced Options](/guides/advanced-options) - Fine-tune OCR behavior
+- [Error Handling](/guides/error-handling) - Handle errors and retries
+- [Performance Tuning](/guides/performance-tuning) - Optimize for speed and cost

@@ -1,0 +1,369 @@
+---
+title: 'Python Installation'
+description: 'Install py-zerox for Python and configure system dependencies'
+---
+
+## Prerequisites
+
+Before installing py-zerox, ensure you have:
+
+- Python 3.11 or higher
+- pip package manager
+- System access to install Poppler utilities
+
+## Installation
+
+<Steps>
+  <Step title="Install system dependencies first">
+    <Warning>
+      Unlike the Node.js version, you must install Poppler **before** installing py-zerox. The package requires Poppler to be available in your system PATH.
+    </Warning>
+
+    Install **Poppler** on your system:
+
+    <Tabs>
+      <Tab title="Linux (Ubuntu/Debian)">
+        ```bash
+        sudo apt-get update
+        sudo apt-get install -y poppler-utils
+        ```
+
+        Verify installation:
+        ```bash
+        pdftoppm -h
+        ```
+      </Tab>
+
+      <Tab title="macOS">
+        Using Homebrew:
+        ```bash
+        brew install poppler
+        ```
+
+        Verify installation:
+        ```bash
+        pdftoppm -h
+        ```
+      </Tab>
+
+      <Tab title="Windows">
+        1. Download the latest Poppler binaries from [this repository](https://github.com/oschwartz10612/poppler-windows/releases/)
+        2. Extract the archive to a location like `C:\Program Files\poppler`
+        3. Add the `bin` directory to your system PATH:
+           - Open System Properties → Environment Variables
+           - Edit the PATH variable
+           - Add `C:\Program Files\poppler\Library\bin`
+        4. Restart your terminal
+
+        Verify installation:
+        ```powershell
+        pdftoppm -h
+        ```
+      </Tab>
+
+      <Tab title="Conda">
+        If you're using Anaconda or Miniconda:
+        ```bash
+        conda install -c conda-forge poppler
+        ```
+
+        Verify installation:
+        ```bash
+        pdftoppm -h
+        ```
+      </Tab>
+    </Tabs>
+
+    <Note>
+      See the [pdf2image documentation](https://pdf2image.readthedocs.io/en/latest/installation.html) for detailed platform-specific instructions.
+    </Note>
+  </Step>
+
+  <Step title="Install py-zerox">
+    Install the package using pip:
+
+    ```bash
+    pip install py-zerox
+    ```
+
+    <Note>
+      The package will automatically install all Python dependencies including `pdf2image`, `litellm`, `aiofiles`, `aiohttp`, and others.
+    </Note>
+  </Step>
+
+  <Step title="Verify installation">
+    Create a test script to verify everything is working:
+
+    ```python test_zerox.py
+    from pyzerox import zerox
+    import os
+    import asyncio
+
+    async def test():
+        # Set your API key (OpenAI example)
+        os.environ["OPENAI_API_KEY"] = "your-api-key-here"
+        
+        try:
+            result = await zerox(
+                file_path="https://omni-demo-data.s3.amazonaws.com/test/cs101.pdf",
+                model="gpt-4o-mini",
+            )
+            print("py-zerox is working!")
+            print(f"Processed {len(result.pages)} pages")
+            return result
+        except Exception as e:
+            print(f"Installation error: {e}")
+
+    # Run the test
+    result = asyncio.run(test())
+    print(result)
+    ```
+
+    Run the test:
+    ```bash
+    python test_zerox.py
+    ```
+
+    <Note>
+      You'll need a valid API key from a supported provider (OpenAI, Azure, Anthropic, AWS Bedrock, Google Gemini, or Vertex AI) to test the OCR functionality.
+    </Note>
+  </Step>
+</Steps>
+
+## Verification Commands
+
+Verify that Poppler is correctly installed and available:
+
+```bash
+# Check Poppler utilities
+pdftoppm -h
+pdfinfo -v
+
+# Test PDF to image conversion
+pdftoppm -png -f 1 -l 1 sample.pdf output
+```
+
+All commands should execute without "command not found" errors.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Error: 'pdftoppm' not found or 'Unable to find pdftoppm'">
+    Poppler is not installed or not in your system PATH.
+
+    **Solution:**
+    - **Linux**: `sudo apt-get install -y poppler-utils`
+    - **macOS**: `brew install poppler`
+    - **Windows**: Download binaries and add to PATH (see installation steps)
+    - **Conda**: `conda install -c conda-forge poppler`
+
+    After installation, restart your terminal and verify with `pdftoppm -h`
+  </Accordion>
+
+  <Accordion title="ImportError: No module named 'pyzerox'">
+    The package is not installed or Python can't find it.
+
+    **Solution:**
+    ```bash
+    # Reinstall the package
+    pip uninstall py-zerox
+    pip install py-zerox
+
+    # Verify installation
+    pip show py-zerox
+
+    # Check Python path
+    python -c "import sys; print('\n'.join(sys.path))"
+    ```
+
+    If using a virtual environment, ensure it's activated:
+    ```bash
+    source venv/bin/activate  # Linux/macOS
+    venv\Scripts\activate     # Windows
+    ```
+  </Accordion>
+
+  <Accordion title="Error: Python version requirement not satisfied">
+    py-zerox requires Python 3.11 or higher.
+
+    **Solution:**
+    Check your Python version:
+    ```bash
+    python --version
+    ```
+
+    If you have Python 3.11+ installed but not as default:
+    ```bash
+    python3.11 -m pip install py-zerox
+    python3.11 test_zerox.py
+    ```
+
+    Consider using pyenv or conda to manage Python versions:
+    ```bash
+    # Using pyenv
+    pyenv install 3.11
+    pyenv local 3.11
+
+    # Using conda
+    conda create -n zerox python=3.11
+    conda activate zerox
+    ```
+  </Accordion>
+
+  <Accordion title="API key or authentication errors">
+    Missing or incorrect API credentials for your LLM provider.
+
+    **Solution:**
+    Set the appropriate environment variables for your provider:
+
+    ```python
+    import os
+
+    # OpenAI
+    os.environ["OPENAI_API_KEY"] = "sk-..."
+
+    # Azure OpenAI
+    os.environ["AZURE_API_KEY"] = "..."
+    os.environ["AZURE_API_BASE"] = "https://your-endpoint.openai.azure.com"
+    os.environ["AZURE_API_VERSION"] = "2023-05-15"
+
+    # Anthropic
+    os.environ["ANTHROPIC_API_KEY"] = "..."
+
+    # Google Gemini
+    os.environ["GEMINI_API_KEY"] = "..."
+
+    # AWS Bedrock (uses boto3 credentials)
+    os.environ["AWS_ACCESS_KEY_ID"] = "..."
+    os.environ["AWS_SECRET_ACCESS_KEY"] = "..."
+    os.environ["AWS_REGION"] = "us-east-1"
+    ```
+
+    Refer to the [LiteLLM documentation](https://docs.litellm.ai/docs/providers) for provider-specific setup.
+  </Accordion>
+
+  <Accordion title="Memory errors with large PDFs">
+    Processing large PDFs with high concurrency can cause memory issues.
+
+    **Solution:**
+    Reduce the concurrency parameter:
+
+    ```python
+    result = await zerox(
+        file_path="large_document.pdf",
+        model="gpt-4o-mini",
+        concurrency=2,  # Lower concurrency (default is 10)
+    )
+    ```
+
+    Or process specific pages only:
+    ```python
+    result = await zerox(
+        file_path="large_document.pdf",
+        model="gpt-4o-mini",
+        select_pages=[1, 2, 3],  # Process only pages 1-3
+    )
+    ```
+  </Accordion>
+
+  <Accordion title="SSL certificate verification errors">
+    Network issues or corporate firewalls blocking API requests.
+
+    **Solution:**
+    ```python
+    import ssl
+    import certifi
+    import os
+
+    # Use certifi's certificate bundle
+    os.environ['SSL_CERT_FILE'] = certifi.where()
+
+    # Or disable SSL verification (not recommended for production)
+    import aiohttp
+    connector = aiohttp.TCPConnector(ssl=False)
+    ```
+
+    For corporate proxies, set proxy environment variables:
+    ```bash
+    export HTTP_PROXY="http://proxy.company.com:8080"
+    export HTTPS_PROXY="http://proxy.company.com:8080"
+    ```
+  </Accordion>
+
+  <Accordion title="Async/await errors or event loop issues">
+    Common when mixing sync and async code incorrectly.
+
+    **Solution:**
+    Always use `asyncio.run()` for the main entry point:
+
+    ```python
+    import asyncio
+    from pyzerox import zerox
+
+    async def main():
+        result = await zerox(
+            file_path="document.pdf",
+            model="gpt-4o-mini"
+        )
+        return result
+
+    # Correct way to run
+    result = asyncio.run(main())
+    ```
+
+    In Jupyter notebooks:
+    ```python
+    # Use await directly in notebook cells
+    result = await zerox(
+        file_path="document.pdf",
+        model="gpt-4o-mini"
+    )
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Dependencies Reference
+
+py-zerox uses the following dependencies:
+
+| Dependency | Purpose | Installation |
+|------------|---------|-------------|
+| **poppler-utils** | PDF to image conversion | System package |
+| **pdf2image** | Python wrapper for Poppler | Installed with pip |
+| **litellm** | Unified API for LLM providers | Installed with pip |
+| **aiofiles** | Async file operations | Installed with pip |
+| **aiohttp** | Async HTTP client | Installed with pip |
+| **aioshutil** | Async file utilities | Installed with pip |
+| **pypdf2** | PDF metadata reading | Installed with pip |
+
+## Virtual Environment (Recommended)
+
+It's recommended to use a virtual environment to avoid dependency conflicts:
+
+```bash
+# Create virtual environment
+python -m venv zerox-env
+
+# Activate (Linux/macOS)
+source zerox-env/bin/activate
+
+# Activate (Windows)
+zerox-env\Scripts\activate
+
+# Install py-zerox
+pip install py-zerox
+
+# Deactivate when done
+deactivate
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Start using py-zerox with your first OCR document
+  </Card>
+  <Card title="Configuration" icon="gear" href="/concepts/model-providers">
+    Configure models, providers, and processing options
+  </Card>
+</CardGroup>

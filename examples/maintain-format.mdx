@@ -1,0 +1,425 @@
+---
+title: 'Maintain Format'
+description: 'Preserve table formatting and structure across multi-page documents'
+icon: 'table'
+---
+
+## Overview
+
+The `maintainFormat` option ensures consistent formatting when processing multi-page tables that span across multiple pages. This is crucial for documents where a table starts on one page and continues on subsequent pages.
+
+<Warning>
+**Performance Impact**: `maintainFormat` processes pages sequentially (one at a time) rather than in parallel, making it slower than default processing. Only use this when you need consistent table formatting across pages.
+</Warning>
+
+## How maintainFormat Works
+
+When `maintainFormat` is enabled:
+
+1. Pages are processed sequentially (not in parallel)
+2. Each page receives context from the previous page
+3. The model maintains consistent column headers and formatting
+4. Table structures are preserved across page boundaries
+
+## Basic Usage
+
+<CodeGroup>
+```typescript Node.js
+import { zerox } from 'zerox';
+
+const result = await zerox({
+  filePath: './multi-page-table.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  maintainFormat: true
+});
+
+// Tables spanning multiple pages will have consistent formatting
+console.log(result.pages[0].content);
+// | Product | Quantity | Price |
+// |---------|----------|-------|
+// | Item A  | 10       | $50   |
+// | Item B  | 5        | $30   |
+
+console.log(result.pages[1].content);
+// | Product | Quantity | Price |  <- Same headers
+// |---------|----------|-------|
+// | Item C  | 8        | $45   |
+// | Item D  | 12       | $60   |
+```
+
+```python Python
+import os
+from pyzerox import zerox
+
+result = await zerox(
+    file_path="./multi-page-table.pdf",
+    openai_api_key=os.getenv("OPENAI_API_KEY"),
+    maintain_format=True
+)
+
+# Tables maintain consistent formatting across pages
+for page in result.pages:
+    print(f"Page {page['page']}:")
+    print(page['content'])
+```
+</CodeGroup>
+
+## When to Use maintainFormat
+
+### Multi-Page Tables
+
+Ideal for documents where tables continue across multiple pages:
+
+```typescript
+const result = await zerox({
+  filePath: './financial-statement.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  maintainFormat: true
+});
+
+// Without maintainFormat, each page might format the table differently
+// With maintainFormat, all pages use the same column structure
+```
+
+### Spreadsheet-Like Documents
+
+Excel files or PDFs with spreadsheet layouts:
+
+```typescript
+const result = await zerox({
+  filePath: './inventory-list.xlsx',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  maintainFormat: true
+});
+
+// Ensures consistent column alignment across all rows
+```
+
+### Financial Reports
+
+Balance sheets, income statements, or reports with structured data:
+
+```typescript
+const result = await zerox({
+  filePath: './quarterly-report.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  maintainFormat: true
+});
+
+// Preserves the hierarchical structure and formatting of financial tables
+```
+
+## When NOT to Use maintainFormat
+
+### Single-Page Documents
+
+```typescript
+// ❌ Unnecessary for single-page documents
+const result = await zerox({
+  filePath: './one-page-receipt.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  maintainFormat: true  // Adds overhead with no benefit
+});
+
+// ✅ Use default processing
+const result = await zerox({
+  filePath: './one-page-receipt.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY
+});
+```
+
+### Documents Without Tables
+
+```typescript
+// ❌ Unnecessary for text-heavy documents
+const result = await zerox({
+  filePath: './article.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  maintainFormat: true  // Slows down processing unnecessarily
+});
+```
+
+### Extract-Only Mode
+
+```typescript
+// ❌ Cannot use with extractOnly
+const result = await zerox({
+  filePath: './table.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  extractOnly: true,
+  maintainFormat: true,  // Error: incompatible
+  schema: mySchema
+});
+// Error: Maintain format is only supported in OCR mode
+```
+
+## Performance Impact
+
+### Sequential vs. Parallel Processing
+
+Default processing (parallel):
+
+```typescript
+const start = Date.now();
+
+const result = await zerox({
+  filePath: './10-page-table.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  concurrency: 5  // Processes 5 pages at a time
+});
+
+console.log(`Completed in ${result.completionTime}ms`);
+// Typical: 15-30 seconds for 10 pages
+```
+
+With maintainFormat (sequential):
+
+```typescript
+const start = Date.now();
+
+const result = await zerox({
+  filePath: './10-page-table.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  maintainFormat: true  // Processes pages one at a time
+  // concurrency setting is ignored when maintainFormat is true
+});
+
+console.log(`Completed in ${result.completionTime}ms`);
+// Typical: 45-90 seconds for 10 pages (3-5x slower)
+```
+
+<Note>
+The `concurrency` parameter is ignored when `maintainFormat` is enabled because pages must be processed sequentially to maintain context.
+</Note>
+
+## Combining with Schema Extraction
+
+You can use `maintainFormat` with schema extraction for structured data from formatted tables:
+
+```typescript
+import { zerox } from 'zerox';
+
+const result = await zerox({
+  filePath: './product-catalog.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  maintainFormat: true,  // Ensures consistent table formatting
+  schema: {
+    type: 'object',
+    properties: {
+      products: {
+        type: 'array',
+        description: 'All products from the catalog',
+        items: {
+          type: 'object',
+          properties: {
+            sku: { type: 'string' },
+            name: { type: 'string' },
+            price: { type: 'number' },
+            stock: { type: 'number' }
+          }
+        }
+      }
+    }
+  }
+});
+
+// The OCR output (result.pages) has consistent table formatting
+// AND you get structured data (result.extracted)
+console.log('Total products:', result.extracted.products.length);
+```
+
+<Note>
+When combining `maintainFormat` with schema extraction, the OCR step maintains formatting while the extraction step pulls structured data. This gives you both well-formatted markdown and structured JSON.
+</Note>
+
+## Real-World Examples
+
+### Example 1: Multi-Page Inventory List
+
+```typescript
+import { zerox } from 'zerox';
+import fs from 'fs';
+
+const result = await zerox({
+  filePath: './warehouse-inventory.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  maintainFormat: true,
+  outputDir: './output'
+});
+
+// Save the formatted markdown
+const markdown = result.pages.map(p => p.content).join('\n\n');
+fs.writeFileSync('./formatted-inventory.md', markdown);
+
+// All pages maintain the same table structure:
+// | SKU | Product | Quantity | Location | Status |
+```
+
+### Example 2: Financial Statement Analysis
+
+```typescript
+import { zerox } from 'zerox';
+
+const result = await zerox({
+  filePath: './balance-sheet.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  maintainFormat: true,
+  schema: {
+    type: 'object',
+    properties: {
+      assets: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            category: { type: 'string' },
+            currentYear: { type: 'number' },
+            previousYear: { type: 'number' }
+          }
+        }
+      },
+      liabilities: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            category: { type: 'string' },
+            currentYear: { type: 'number' },
+            previousYear: { type: 'number' }
+          }
+        }
+      }
+    }
+  }
+});
+
+// Get both formatted tables and structured data
+console.log('Formatted:', result.pages[0].content);
+console.log('Structured:', result.extracted.assets);
+```
+
+### Example 3: Product Price List
+
+```typescript
+import { zerox } from 'zerox';
+
+// Process a 50-page price list
+const result = await zerox({
+  filePath: './wholesale-prices-2024.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  maintainFormat: true,
+  maxRetries: 2  // Retry failed pages
+});
+
+// Check processing summary
+const { ocr } = result.summary;
+console.log(`Successfully processed: ${ocr.successful} pages`);
+console.log(`Failed: ${ocr.failed} pages`);
+
+// All 50 pages maintain consistent column structure
+result.pages.forEach((page, idx) => {
+  console.log(`Page ${idx + 1}: ${page.contentLength} characters`);
+});
+```
+
+## Error Handling
+
+With sequential processing, if one page fails, subsequent pages are not processed:
+
+```typescript
+import { zerox, ErrorMode } from 'zerox';
+
+const result = await zerox({
+  filePath: './table.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  maintainFormat: true,
+  errorMode: ErrorMode.IGNORE,  // Continue even if a page fails
+  maxRetries: 3  // Retry failed pages
+});
+
+// Check which pages succeeded
+result.pages.forEach(page => {
+  if (page.status === 'ERROR') {
+    console.error(`Page ${page.page} failed: ${page.error}`);
+  }
+});
+```
+
+<Warning>
+When `maintainFormat` is enabled and a page fails, processing stops at that page to avoid formatting inconsistencies. Use `errorMode: ErrorMode.IGNORE` and `maxRetries` to handle failures gracefully.
+</Warning>
+
+## Comparison: With vs. Without maintainFormat
+
+| Feature | Default | With maintainFormat |
+|---------|---------|--------------------|
+| **Processing** | Parallel | Sequential |
+| **Speed** | Fast | Slower (3-5x) |
+| **Context** | None between pages | Previous page context |
+| **Table formatting** | May vary per page | Consistent across pages |
+| **Concurrency** | Respected | Ignored |
+| **Best for** | General documents | Multi-page tables |
+| **Token usage** | Lower | Slightly higher |
+
+## Best Practices
+
+### 1. Only Use When Needed
+
+Enable `maintainFormat` only for documents with multi-page tables:
+
+```typescript
+const hasMultiPageTable = await checkIfMultiPageTable(filePath);
+
+const result = await zerox({
+  filePath,
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  maintainFormat: hasMultiPageTable  // Conditional usage
+});
+```
+
+### 2. Combine with Appropriate Concurrency
+
+For documents with isolated tables on each page, use default processing:
+
+```typescript
+// ❌ Slow: Each page is independent
+const result = await zerox({
+  filePath: './separate-invoices.pdf',  // Each page is a separate invoice
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  maintainFormat: true  // Unnecessary
+});
+
+// ✅ Fast: Process in parallel
+const result = await zerox({
+  filePath: './separate-invoices.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  concurrency: 10
+});
+```
+
+### 3. Monitor Processing Time
+
+```typescript
+const start = Date.now();
+
+const result = await zerox({
+  filePath: './large-table.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  maintainFormat: true
+});
+
+const duration = Date.now() - start;
+console.log(`Processed ${result.pages.length} pages in ${duration}ms`);
+console.log(`Average: ${duration / result.pages.length}ms per page`);
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Schema Extraction" icon="brackets-curly" href="/examples/schema-extraction">
+    Extract structured data from formatted tables
+  </Card>
+  <Card title="Hybrid Extraction" icon="layer-group" href="/examples/hybrid-extraction">
+    Combine visual and text processing
+  </Card>
+</CardGroup>

@@ -1,0 +1,233 @@
+---
+title: 'PDF to Markdown Conversion'
+description: 'Convert PDF documents to clean, structured markdown with Zerox'
+---
+
+## Overview
+
+The most common use case for Zerox is converting PDF documents into markdown format. This example demonstrates basic PDF-to-markdown conversion with proper output structure.
+
+## Use Case
+
+Perfect for:
+- Digitizing printed documents
+- Converting academic papers or textbooks
+- Extracting content from reports and presentations
+- Building searchable document repositories
+- Creating markdown versions of legacy PDFs
+
+## Basic Example
+
+<CodeGroup>
+
+```typescript Node.js
+import { zerox } from "zerox";
+import path from "path";
+import fs from "fs";
+
+// Convert PDF to markdown
+const result = await zerox({
+  filePath: "https://omni-demo-data.s3.amazonaws.com/test/cs101.pdf",
+  credentials: {
+    apiKey: process.env.OPENAI_API_KEY || "",
+  },
+  // Optional: Save output to file
+  outputDir: "./output",
+});
+
+// Access the markdown content
+console.log("File processed:", result.fileName);
+console.log("Total pages:", result.pages.length);
+console.log("Processing time:", result.completionTime, "ms");
+
+// Get markdown from all pages
+const fullMarkdown = result.pages
+  .map((page) => page.content)
+  .join("\n\n---\n\n");
+
+console.log(fullMarkdown);
+```
+
+```python Python
+import asyncio
+import os
+from pyzerox import zerox
+
+async def convert_pdf_to_markdown():
+    # Set up your API key
+    os.environ["OPENAI_API_KEY"] = "your-api-key"
+    
+    # Convert PDF to markdown
+    result = await zerox(
+        file_path="https://omni-demo-data.s3.amazonaws.com/test/cs101.pdf",
+        model="gpt-4o-mini",
+        output_dir="./output",  # Optional: saves consolidated markdown
+    )
+    
+    # Access the markdown content
+    print(f"File processed: {result.file_name}")
+    print(f"Total pages: {len(result.pages)}")
+    print(f"Processing time: {result.completion_time}ms")
+    
+    # Get markdown from all pages
+    full_markdown = "\n\n---\n\n".join(
+        page.content for page in result.pages
+    )
+    
+    print(full_markdown)
+
+# Run the conversion
+result = asyncio.run(convert_pdf_to_markdown())
+```
+
+</CodeGroup>
+
+## Expected Output Structure
+
+The output will contain structured markdown with properly formatted:
+
+```markdown
+# Document Title
+
+## Section Heading
+
+Paragraph content with **bold** and *italic* text.
+
+### Subsection
+
+- Bullet point lists
+- Properly formatted
+- With hierarchies
+
+| Column 1 | Column 2 | Column 3 |
+|----------|----------|----------|
+| Data 1   | Data 2   | Data 3   |
+
+<page_number>1</page_number>
+```
+
+### Output Object
+
+```json
+{
+  "completionTime": 8432,
+  "fileName": "cs101",
+  "inputTokens": 36877,
+  "outputTokens": 515,
+  "pages": [
+    {
+      "page": 1,
+      "content": "# Computer Science 101\n\nThis is the markdown content...",
+      "contentLength": 2333
+    }
+  ],
+  "extracted": null,
+  "summary": {
+    "totalPages": 1,
+    "ocr": {
+      "successful": 1,
+      "failed": 0
+    },
+    "extracted": null
+  }
+}
+```
+
+## Processing Specific Pages
+
+You can convert only specific pages instead of the entire document:
+
+<CodeGroup>
+
+```typescript Node.js
+const result = await zerox({
+  filePath: "document.pdf",
+  credentials: { apiKey: process.env.OPENAI_API_KEY || "" },
+  // Convert only pages 1, 3, and 5
+  pagesToConvertAsImages: [1, 3, 5],
+});
+```
+
+```python Python
+result = await zerox(
+    file_path="document.pdf",
+    model="gpt-4o-mini",
+    # Convert only pages 1, 3, and 5
+    select_pages=[1, 3, 5],
+)
+```
+
+</CodeGroup>
+
+## Tips and Best Practices
+
+<Tip>
+**Performance**: For large documents, increase `concurrency` to process more pages in parallel (default is 10).
+</Tip>
+
+<Tip>
+**Quality**: Use higher-tier models like `gpt-4o` for better accuracy on complex layouts or documents with mathematical notation.
+</Tip>
+
+<Tip>
+**Consistency**: Enable `maintainFormat: true` if you need consistent formatting across pages, especially for documents with tables spanning multiple pages. Note: this processes pages sequentially and is slower.
+</Tip>
+
+<Tip>
+**Cost Optimization**: Use `gpt-4o-mini` for simple documents to reduce API costs while maintaining good quality.
+</Tip>
+
+<Tip>
+**Local Files**: For local files, use absolute paths:
+- Node.js: `path.resolve(__dirname, "./document.pdf")`
+- Python: `os.path.abspath("./document.pdf")`
+</Tip>
+
+## Handling Tables and Charts
+
+Zerox automatically:
+- Converts tables to HTML or markdown table format
+- Interprets charts and infographics into structured data
+- Preserves headers, footers, and page numbers
+- Wraps logos and watermarks in special tags
+
+## Error Handling
+
+<CodeGroup>
+
+```typescript Node.js
+import { zerox, ErrorMode } from "zerox";
+
+try {
+  const result = await zerox({
+    filePath: "document.pdf",
+    credentials: { apiKey: process.env.OPENAI_API_KEY || "" },
+    errorMode: ErrorMode.THROW, // Throw on errors instead of ignoring
+  });
+  
+  // Check for failed pages
+  const failedPages = result.pages.filter(
+    (page) => page.status === "ERROR"
+  );
+  
+  if (failedPages.length > 0) {
+    console.error("Failed pages:", failedPages);
+  }
+} catch (error) {
+  console.error("Conversion failed:", error);
+}
+```
+
+```python Python
+try:
+    result = await zerox(
+        file_path="document.pdf",
+        model="gpt-4o-mini",
+    )
+    
+    print(f"Successfully processed {len(result.pages)} pages")
+except Exception as error:
+    print(f"Conversion failed: {error}")
+```
+
+</CodeGroup>

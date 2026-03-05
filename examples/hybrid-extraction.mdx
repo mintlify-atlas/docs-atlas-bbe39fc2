@@ -1,0 +1,469 @@
+---
+title: 'Hybrid Extraction'
+description: 'Combine vision and OCR text for enhanced extraction accuracy'
+icon: 'layer-group'
+---
+
+## Overview
+
+Hybrid extraction combines vision-based processing with OCR text to provide the best of both worlds: the accuracy of text extraction with the context of visual information. This is particularly useful for complex documents with tables, charts, or mixed content.
+
+## How Hybrid Extraction Works
+
+When `enableHybridExtraction` is enabled, Zerox:
+
+1. First performs OCR to extract text from each page
+2. Then sends both the images and OCR text to the extraction model
+3. The model uses the text for accuracy and the images for visual context
+
+<Note>
+Hybrid extraction requires a schema and cannot be used with `extractOnly` or `directImageExtraction` modes.
+</Note>
+
+## Basic Hybrid Extraction
+
+<CodeGroup>
+```typescript Node.js
+import { zerox } from 'zerox';
+
+const result = await zerox({
+  filePath: './financial-report.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  enableHybridExtraction: true,
+  schema: {
+    type: 'object',
+    properties: {
+      revenue: {
+        type: 'number',
+        description: 'Total revenue from the financial table'
+      },
+      expenses: {
+        type: 'number',
+        description: 'Total expenses'
+      },
+      chartTitle: {
+        type: 'string',
+        description: 'Title of the chart or graph'
+      },
+      trends: {
+        type: 'array',
+        description: 'Key trends visible in charts',
+        items: { type: 'string' }
+      }
+    }
+  }
+});
+
+console.log(result.extracted);
+// {
+//   revenue: 1250000,
+//   expenses: 890000,
+//   chartTitle: 'Quarterly Revenue Growth',
+//   trends: ['Upward trend in Q3', 'Peak in December']
+// }
+
+// You also get the OCR text
+console.log(result.pages[0].content);
+```
+
+```python Python
+import os
+from pyzerox import zerox
+
+result = await zerox(
+    file_path="./financial-report.pdf",
+    openai_api_key=os.getenv("OPENAI_API_KEY"),
+    enable_hybrid_extraction=True,
+    schema={
+        "type": "object",
+        "properties": {
+            "revenue": {
+                "type": "number",
+                "description": "Total revenue from the financial table"
+            },
+            "expenses": {
+                "type": "number",
+                "description": "Total expenses"
+            },
+            "chart_title": {
+                "type": "string",
+                "description": "Title of the chart or graph"
+            },
+            "trends": {
+                "type": "array",
+                "description": "Key trends visible in charts",
+                "items": {"type": "string"}
+            }
+        }
+    }
+)
+```
+</CodeGroup>
+
+## When to Use Hybrid Extraction
+
+Hybrid extraction is ideal for documents with:
+
+### Complex Tables
+
+Tables with merged cells, multiple headers, or nested structures benefit from both visual layout and text content:
+
+```typescript
+const result = await zerox({
+  filePath: './complex-table.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  enableHybridExtraction: true,
+  schema: {
+    type: 'object',
+    properties: {
+      quarterlyData: {
+        type: 'array',
+        description: 'Data from the quarterly comparison table',
+        items: {
+          type: 'object',
+          properties: {
+            quarter: { type: 'string' },
+            region: { type: 'string' },
+            sales: { type: 'number' },
+            growth: { type: 'string' }
+          }
+        }
+      }
+    }
+  }
+});
+```
+
+### Charts and Graphs
+
+Visual data representations that include both text labels and graphical elements:
+
+```typescript
+const result = await zerox({
+  filePath: './presentation.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  enableHybridExtraction: true,
+  schema: {
+    type: 'object',
+    properties: {
+      chartType: {
+        type: 'string',
+        description: 'Type of chart (bar, line, pie, etc.)'
+      },
+      dataPoints: {
+        type: 'array',
+        description: 'Values from the chart',
+        items: {
+          type: 'object',
+          properties: {
+            label: { type: 'string' },
+            value: { type: 'number' }
+          }
+        }
+      },
+      visualInsights: {
+        type: 'array',
+        description: 'Observations from the visual representation',
+        items: { type: 'string' }
+      }
+    }
+  }
+});
+```
+
+### Forms with Visual Elements
+
+Forms containing checkboxes, signatures, stamps, or highlighted sections:
+
+```typescript
+const result = await zerox({
+  filePath: './application-form.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  enableHybridExtraction: true,
+  schema: {
+    type: 'object',
+    properties: {
+      applicantName: { type: 'string' },
+      selectedOptions: {
+        type: 'array',
+        description: 'Checked boxes in the form',
+        items: { type: 'string' }
+      },
+      hasSignature: {
+        type: 'boolean',
+        description: 'Whether the form is signed'
+      },
+      highlightedSections: {
+        type: 'array',
+        description: 'Sections that are highlighted or marked',
+        items: { type: 'string' }
+      }
+    }
+  }
+});
+```
+
+## Combining with extractPerPage
+
+Hybrid extraction works seamlessly with per-page extraction:
+
+<CodeGroup>
+```typescript Node.js
+import { zerox } from 'zerox';
+
+const result = await zerox({
+  filePath: './multi-page-report.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  enableHybridExtraction: true,
+  schema: {
+    type: 'object',
+    properties: {
+      // Document-level: extracted from all pages
+      reportTitle: { type: 'string' },
+      author: { type: 'string' },
+      // Page-level: extracted from each page
+      charts: {
+        type: 'array',
+        description: 'Charts found on this page',
+        items: {
+          type: 'object',
+          properties: {
+            title: { type: 'string' },
+            type: { type: 'string' },
+            keyFinding: { type: 'string' }
+          }
+        }
+      }
+    }
+  },
+  extractPerPage: ['charts']
+});
+
+// Result includes page numbers for per-page extractions
+console.log(result.extracted);
+// {
+//   reportTitle: 'Annual Analysis 2024',
+//   author: 'Data Team',
+//   charts: [
+//     { page: 1, value: [{ title: 'Revenue', type: 'bar', ... }] },
+//     { page: 2, value: [{ title: 'Growth', type: 'line', ... }] }
+//   ]
+// }
+```
+
+```python Python
+import os
+from pyzerox import zerox
+
+result = await zerox(
+    file_path="./multi-page-report.pdf",
+    openai_api_key=os.getenv("OPENAI_API_KEY"),
+    enable_hybrid_extraction=True,
+    schema={
+        "type": "object",
+        "properties": {
+            "report_title": {"type": "string"},
+            "author": {"type": "string"},
+            "charts": {
+                "type": "array",
+                "description": "Charts found on this page",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string"},
+                        "type": {"type": "string"},
+                        "key_finding": {"type": "string"}
+                    }
+                }
+            }
+        }
+    },
+    extract_per_page=["charts"]
+)
+```
+</CodeGroup>
+
+## Performance Considerations
+
+### Token Usage
+
+Hybrid extraction uses more tokens because it processes both images and text:
+
+```typescript
+const result = await zerox({
+  filePath: './document.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  enableHybridExtraction: true,
+  schema: mySchema
+});
+
+console.log(`Input tokens: ${result.inputTokens}`);
+console.log(`Output tokens: ${result.outputTokens}`);
+
+// Hybrid extraction typically uses 2-3x more input tokens
+// than text-only extraction due to image processing
+```
+
+<Warning>
+Hybrid extraction increases token usage and cost compared to text-only extraction. Use it when visual context significantly improves accuracy.
+</Warning>
+
+### Processing Time
+
+Hybrid extraction requires both OCR and extraction steps:
+
+```typescript
+const start = Date.now();
+
+const result = await zerox({
+  filePath: './document.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  enableHybridExtraction: true,
+  schema: mySchema,
+  concurrency: 5  // Process multiple pages in parallel
+});
+
+console.log(`Completed in ${result.completionTime}ms`);
+```
+
+## Custom Extraction Prompts
+
+Guide the model to leverage both visual and textual information:
+
+```typescript
+const result = await zerox({
+  filePath: './infographic.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  enableHybridExtraction: true,
+  schema: {
+    type: 'object',
+    properties: {
+      mainStatistics: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            label: { type: 'string' },
+            value: { type: 'string' },
+            visualEmphasis: {
+              type: 'string',
+              description: 'How this stat is visually emphasized (color, size, icons, etc.)'
+            }
+          }
+        }
+      }
+    }
+  },
+  extractionPrompt: `Extract statistics from this infographic. 
+    Use the text for accurate values and the visual elements to understand emphasis and hierarchy. 
+    Note any visual indicators like colors, icons, or size differences that highlight important data.`
+});
+```
+
+## Limitations
+
+### Cannot Be Used With
+
+Hybrid extraction has some restrictions:
+
+```typescript
+// ❌ Cannot use with extractOnly
+await zerox({
+  filePath: './doc.pdf',
+  enableHybridExtraction: true,
+  extractOnly: true,  // Error: incompatible
+  schema: mySchema
+});
+
+// ❌ Cannot use with directImageExtraction
+await zerox({
+  filePath: './doc.pdf',
+  enableHybridExtraction: true,
+  directImageExtraction: true,  // Error: incompatible
+  schema: mySchema
+});
+
+// ❌ Requires a schema
+await zerox({
+  filePath: './doc.pdf',
+  enableHybridExtraction: true  // Error: schema required
+});
+
+// ✅ Correct usage
+await zerox({
+  filePath: './doc.pdf',
+  enableHybridExtraction: true,
+  schema: mySchema  // Schema is required
+});
+```
+
+## Comparison: Text vs. Hybrid Extraction
+
+| Feature | Text-Only | Hybrid |
+|---------|-----------|--------|
+| **Input** | OCR text only | Text + images |
+| **Token usage** | Lower | Higher (2-3x) |
+| **Processing time** | Faster | Slower |
+| **Accuracy for text** | High | High |
+| **Visual context** | None | Full |
+| **Best for** | Simple documents | Complex layouts |
+| **Cost** | Lower | Higher |
+
+## Real-World Example: Invoice Processing
+
+A complete example showing the benefits of hybrid extraction:
+
+```typescript
+import { zerox } from 'zerox';
+
+const result = await zerox({
+  filePath: './invoice-with-logo.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  enableHybridExtraction: true,
+  schema: {
+    type: 'object',
+    properties: {
+      // Text extraction
+      invoiceNumber: { type: 'string' },
+      date: { type: 'string' },
+      total: { type: 'number' },
+      // Visual extraction
+      hasCompanyLogo: {
+        type: 'boolean',
+        description: 'Whether company logo is present'
+      },
+      isStamped: {
+        type: 'boolean',
+        description: 'Whether invoice has an approval stamp'
+      },
+      // Complex table extraction
+      lineItems: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            description: { type: 'string' },
+            quantity: { type: 'number' },
+            unitPrice: { type: 'number' },
+            total: { type: 'number' }
+          }
+        }
+      }
+    }
+  },
+  extractionPrompt: `Extract invoice data. Use visual cues to identify logos, stamps, and table structure.`
+});
+
+console.log('Invoice validated:', result.extracted.hasCompanyLogo && result.extracted.isStamped);
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Schema Extraction" icon="brackets-curly" href="/examples/schema-extraction">
+    Learn more about defining extraction schemas
+  </Card>
+  <Card title="Custom Models" icon="brain" href="/examples/custom-models">
+    Use custom model implementations
+  </Card>
+</CardGroup>

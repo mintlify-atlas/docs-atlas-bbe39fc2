@@ -1,0 +1,470 @@
+---
+title: Error Handling
+description: Handle errors and configure retry strategies in Zerox
+---
+
+## Overview
+
+Zerox provides robust error handling mechanisms including retry strategies and configurable error modes. This guide covers how to handle errors gracefully in your OCR workflows.
+
+## Error Modes
+
+Zerox supports two error handling modes via the `ErrorMode` enum:
+
+```typescript
+enum ErrorMode {
+  IGNORE = "IGNORE",  // Default: Continue processing other pages
+  THROW = "THROW"     // Stop and throw error immediately
+}
+```
+
+### Ignore Mode (Default)
+
+Continue processing remaining pages when an error occurs:
+
+<Tabs>
+  <Tab title="Node.js">
+    ```javascript
+    import { zerox, ErrorMode } from 'zerox-ocr';
+
+    const result = await zerox({
+      filePath: 'document.pdf',
+      credentials: { apiKey: process.env.OPENAI_API_KEY },
+      errorMode: ErrorMode.IGNORE  // Default behavior
+    });
+
+    // Check for failed pages
+    const failedPages = result.pages.filter(page => page.status === 'ERROR');
+    console.log(`${failedPages.length} pages failed`);
+
+    // Process successful pages
+    const successfulPages = result.pages.filter(page => page.status === 'SUCCESS');
+    successfulPages.forEach(page => {
+      console.log(`Page ${page.page}: ${page.content}`);
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    from zerox import zerox, ErrorMode
+
+    result = await zerox(
+        file_path="document.pdf",
+        credentials={"api_key": os.getenv("OPENAI_API_KEY")},
+        error_mode=ErrorMode.IGNORE  # Default behavior
+    )
+
+    # Check for failed pages
+    failed_pages = [p for p in result.pages if p.status == "ERROR"]
+    print(f"{len(failed_pages)} pages failed")
+
+    # Process successful pages
+    successful_pages = [p for p in result.pages if p.status == "SUCCESS"]
+    for page in successful_pages:
+        print(f"Page {page.page}: {page.content}")
+    ```
+  </Tab>
+</Tabs>
+
+<ParamField path="errorMode" type="ErrorMode" default={ErrorMode.IGNORE}>
+  Error handling strategy:
+  - `ErrorMode.IGNORE`: Mark page as error and continue processing (default)
+  - `ErrorMode.THROW`: Throw error immediately and stop processing
+</ParamField>
+
+### Throw Mode
+
+Stop processing and throw error immediately:
+
+```javascript
+import { zerox, ErrorMode } from 'zerox-ocr';
+
+try {
+  const result = await zerox({
+    filePath: 'document.pdf',
+    credentials: { apiKey: process.env.OPENAI_API_KEY },
+    errorMode: ErrorMode.THROW
+  });
+} catch (error) {
+  console.error('OCR failed:', error);
+  // Handle error - no partial results available
+}
+```
+
+## Page Error Structure
+
+When a page fails in `IGNORE` mode, it returns an error page:
+
+```typescript
+interface Page {
+  content: string;          // Empty string on error
+  contentLength: number;    // 0 on error
+  error?: string;           // Error message
+  page: number;             // Page number that failed
+  status: "ERROR";          // Status indicator
+}
+```
+
+Example error page:
+
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  errorMode: ErrorMode.IGNORE
+});
+
+result.pages.forEach(page => {
+  if (page.status === 'ERROR') {
+    console.error(`Page ${page.page} failed: ${page.error}`);
+    // Output: "Page 5 failed: Failed to process page 5: API rate limit exceeded"
+  }
+});
+```
+
+## Retry Strategy
+
+Zerox automatically retries failed operations with exponential backoff:
+
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  maxRetries: 3  // Retry up to 3 times per page
+});
+```
+
+<ParamField path="maxRetries" type="number" default={1}>
+  Number of retry attempts for failed operations. Each page will be retried this many times before being marked as failed.
+</ParamField>
+
+### How Retries Work
+
+The retry implementation from `utils/common.ts`:
+
+```typescript
+export const runRetries = async <T>(
+  operation: () => Promise<T>,
+  maxRetries: number,
+  pageNumber: number
+): Promise<T> => {
+  let retryCount = 0;
+  while (retryCount <= maxRetries) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (retryCount === maxRetries) {
+        throw error;
+      }
+      console.log(`Retrying page ${pageNumber}...`);
+      retryCount++;
+    }
+  }
+  throw new Error("Unexpected retry error");
+};
+```
+
+### Retry Examples
+
+**Single retry (default):**
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  maxRetries: 1  // Try once, retry once if failed
+});
+```
+
+**Aggressive retries:**
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  maxRetries: 5  // Try once, retry up to 5 times
+});
+```
+
+**No retries:**
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  maxRetries: 0  // No retries, fail immediately
+});
+```
+
+## Processing Summary
+
+The output includes statistics about successful and failed operations:
+
+```typescript
+interface Summary {
+  totalPages: number;
+  ocr: {
+    successful: number;
+    failed: number;
+  } | null;
+  extracted: {
+    successful: number;
+    failed: number;
+  } | null;
+}
+```
+
+Example usage:
+
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  errorMode: ErrorMode.IGNORE,
+  schema: { /* extraction schema */ }
+});
+
+console.log('OCR Summary:');
+console.log(`  Total pages: ${result.summary.totalPages}`);
+console.log(`  Successful: ${result.summary.ocr?.successful}`);
+console.log(`  Failed: ${result.summary.ocr?.failed}`);
+
+if (result.summary.extracted) {
+  console.log('Extraction Summary:');
+  console.log(`  Successful: ${result.summary.extracted.successful}`);
+  console.log(`  Failed: ${result.summary.extracted.failed}`);
+}
+```
+
+## Common Error Scenarios
+
+### API Rate Limits
+
+```javascript
+import { zerox, ErrorMode } from 'zerox-ocr';
+
+const result = await zerox({
+  filePath: 'large-document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  concurrency: 3,        // Lower concurrency to avoid rate limits
+  maxRetries: 5,         // Retry more times
+  errorMode: ErrorMode.IGNORE  // Continue on rate limit errors
+});
+
+// Check for rate limit errors
+const rateLimitErrors = result.pages.filter(page => 
+  page.error?.includes('rate limit')
+);
+
+if (rateLimitErrors.length > 0) {
+  console.log(`${rateLimitErrors.length} pages hit rate limits`);
+  // Consider reprocessing these pages
+}
+```
+
+### Invalid Credentials
+
+```javascript
+try {
+  const result = await zerox({
+    filePath: 'document.pdf',
+    credentials: { apiKey: 'invalid-key' }
+  });
+} catch (error) {
+  if (error.message === 'Missing credentials') {
+    console.error('No API credentials provided');
+  } else if (error.message.includes('401')) {
+    console.error('Invalid API credentials');
+  }
+}
+```
+
+### Missing File
+
+```javascript
+try {
+  const result = await zerox({
+    filePath: 'nonexistent.pdf',
+    credentials: { apiKey: process.env.OPENAI_API_KEY }
+  });
+} catch (error) {
+  if (error.message === 'Missing file path') {
+    console.error('No file path provided');
+  } else if (error.message.includes('Failed to save file')) {
+    console.error('Could not download or access file');
+  }
+}
+```
+
+### Invalid Configuration
+
+```javascript
+try {
+  const result = await zerox({
+    filePath: 'document.pdf',
+    credentials: { apiKey: process.env.OPENAI_API_KEY },
+    extractOnly: true  // Requires schema
+  });
+} catch (error) {
+  console.error(error.message);
+  // "Schema is required for extraction mode"
+}
+
+try {
+  const result = await zerox({
+    filePath: 'document.pdf',
+    credentials: { apiKey: process.env.OPENAI_API_KEY },
+    maintainFormat: true,
+    extractOnly: true
+  });
+} catch (error) {
+  console.error(error.message);
+  // "Maintain format is only supported in OCR mode"
+}
+
+try {
+  const result = await zerox({
+    filePath: 'document.pdf',
+    credentials: { apiKey: process.env.OPENAI_API_KEY },
+    enableHybridExtraction: true,
+    extractOnly: true
+  });
+} catch (error) {
+  console.error(error.message);
+  // "Hybrid extraction cannot be used in direct image extraction or extract-only mode"
+}
+```
+
+## Robust Error Handling Pattern
+
+```javascript
+import { zerox, ErrorMode } from 'zerox-ocr';
+
+async function processDocumentSafely(filePath) {
+  try {
+    const result = await zerox({
+      filePath,
+      credentials: { apiKey: process.env.OPENAI_API_KEY },
+      errorMode: ErrorMode.IGNORE,
+      maxRetries: 3,
+      concurrency: 5
+    });
+
+    // Check overall success
+    const successRate = (
+      result.summary.ocr.successful / 
+      result.summary.totalPages
+    ) * 100;
+
+    if (successRate < 80) {
+      console.warn(
+        `Low success rate: ${successRate.toFixed(1)}%`
+      );
+    }
+
+    // Extract successful pages
+    const successfulContent = result.pages
+      .filter(page => page.status === 'SUCCESS')
+      .map(page => page.content)
+      .join('\n\n');
+
+    // Log failed pages for investigation
+    const failedPages = result.pages
+      .filter(page => page.status === 'ERROR');
+    
+    if (failedPages.length > 0) {
+      console.error('Failed pages:', failedPages.map(p => ({
+        page: p.page,
+        error: p.error
+      })));
+    }
+
+    return {
+      success: true,
+      content: successfulContent,
+      stats: result.summary,
+      failedPages: failedPages.map(p => p.page)
+    };
+
+  } catch (error) {
+    // Handle fatal errors
+    console.error('Fatal error processing document:', error);
+    
+    return {
+      success: false,
+      error: error.message,
+      content: null,
+      stats: null
+    };
+  }
+}
+
+// Usage
+const result = await processDocumentSafely('document.pdf');
+
+if (result.success) {
+  console.log('Document processed successfully');
+  console.log(`Success rate: ${result.stats.ocr.successful}/${result.stats.totalPages}`);
+  
+  if (result.failedPages.length > 0) {
+    console.log(`Retry these pages: ${result.failedPages.join(', ')}`);
+  }
+} else {
+  console.error('Document processing failed:', result.error);
+}
+```
+
+## Debugging Tips
+
+### Enable Detailed Logging
+
+Monitor retry attempts:
+
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  maxRetries: 3
+});
+
+// Console output shows retries:
+// "Retrying page 5..."
+// "Retrying page 5..."
+// "Retrying page 5..."
+```
+
+### Preserve Temporary Files
+
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  tempDir: './debug-temp',
+  cleanup: false  // Keep temp files for inspection
+});
+
+// Inspect images in ./debug-temp/zerox-temp-*/source/
+```
+
+### Check Token Counts
+
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY }
+});
+
+result.pages.forEach(page => {
+  if (page.status === 'SUCCESS') {
+    console.log(`Page ${page.page}:`);
+    console.log(`  Input tokens: ${page.inputTokens}`);
+    console.log(`  Output tokens: ${page.outputTokens}`);
+  }
+});
+
+console.log(`Total input tokens: ${result.inputTokens}`);
+console.log(`Total output tokens: ${result.outputTokens}`);
+```
+
+## Next Steps
+
+- [Performance Tuning](/guides/performance-tuning) - Optimize processing speed
+- [Advanced Options](/guides/advanced-options) - Configure image processing
+- [Basic Usage](/guides/basic-usage) - Return to basics

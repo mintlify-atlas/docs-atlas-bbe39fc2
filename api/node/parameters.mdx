@@ -1,0 +1,354 @@
+---
+title: 'Parameters'
+description: 'Complete reference for ZeroxArgs parameters'
+---
+
+## ZeroxArgs Interface
+
+All parameters for the `zerox()` function.
+
+### Required Parameters
+
+<ParamField path="filePath" type="string" required>
+  Path to the file to process. Can be a local file path or a URL to a remote file.
+  
+  Supported formats:
+  - PDF (`.pdf`)
+  - Images (`.png`, `.jpg`, `.jpeg`, `.heic`)
+  - Structured data files (`.xlsx`, `.xls`, `.csv`)
+  - Other document formats that can be converted to PDF
+</ParamField>
+
+### Authentication
+
+<ParamField path="credentials" type="ModelCredentials">
+  Authentication credentials for the model provider. Required unless using `openaiAPIKey`.
+  
+  <Expandable title="ModelCredentials Types">
+    **OpenAICredentials**
+    ```typescript
+    {
+      apiKey: string;
+    }
+    ```
+    
+    **AzureCredentials**
+    ```typescript
+    {
+      apiKey: string;
+      endpoint: string;
+    }
+    ```
+    
+    **BedrockCredentials**
+    ```typescript
+    {
+      region: string;
+      accessKeyId?: string;
+      secretAccessKey?: string;
+      sessionToken?: string;
+    }
+    ```
+    
+    **GoogleCredentials**
+    ```typescript
+    {
+      apiKey: string;
+    }
+    ```
+  </Expandable>
+  
+  Default: `{ apiKey: "" }`
+</ParamField>
+
+<ParamField path="openaiAPIKey" type="string">
+  Deprecated: Use `credentials` instead. OpenAI API key for authentication.
+  
+  When provided, automatically sets `modelProvider` to `ModelProvider.OPENAI` and `credentials` to `{ apiKey: openaiAPIKey }`.
+  
+  Default: `""`
+</ParamField>
+
+### Model Configuration
+
+<ParamField path="model" type="ModelOptions | string">
+  The model to use for OCR processing.
+  
+  Available options:
+  - `ModelOptions.OPENAI_GPT_4_1` - `"gpt-4.1"`
+  - `ModelOptions.OPENAI_GPT_4_1_MINI` - `"gpt-4.1-mini"`
+  - `ModelOptions.OPENAI_GPT_4O` - `"gpt-4o"`
+  - `ModelOptions.OPENAI_GPT_4O_MINI` - `"gpt-4o-mini"`
+  - `ModelOptions.BEDROCK_CLAUDE_3_HAIKU_2024_10`
+  - `ModelOptions.BEDROCK_CLAUDE_3_SONNET_2024_10`
+  - `ModelOptions.GOOGLE_GEMINI_2_5_PRO`
+  - `ModelOptions.GOOGLE_GEMINI_2_FLASH`
+  - And more (see [Types](/api/node/types#modeloptions))
+  
+  Default: `ModelOptions.OPENAI_GPT_4O`
+</ParamField>
+
+<ParamField path="modelProvider" type="ModelProvider | string">
+  The model provider to use.
+  
+  Options:
+  - `ModelProvider.OPENAI`
+  - `ModelProvider.AZURE`
+  - `ModelProvider.BEDROCK`
+  - `ModelProvider.GOOGLE`
+  
+  Default: `ModelProvider.OPENAI`
+</ParamField>
+
+<ParamField path="llmParams" type="Partial<LLMParams>">
+  Additional parameters for the language model.
+  
+  <Expandable title="LLMParams Properties">
+    **Common Parameters (all providers)**
+    - `temperature?: number` - Controls randomness (0-1)
+    - `topP?: number` - Nucleus sampling parameter
+    - `frequencyPenalty?: number` - Penalizes frequent tokens
+    - `presencePenalty?: number` - Penalizes tokens based on presence
+    
+    **OpenAI/Azure Specific**
+    - `maxTokens?: number` - Maximum tokens to generate
+    - `logprobs?: boolean` - Return log probabilities
+    
+    **Bedrock Specific**
+    - `maxTokens?: number` - Maximum tokens to generate
+    
+    **Google Specific**
+    - `maxOutputTokens?: number` - Maximum output tokens
+  </Expandable>
+  
+  Default: `{}`
+</ParamField>
+
+<ParamField path="customModelFunction" type="function">
+  Custom function to handle model completion. Useful for implementing custom model providers or adding preprocessing logic.
+  
+  ```typescript
+  (params: {
+    buffers: Buffer[];
+    image: string;
+    maintainFormat: boolean;
+    pageNumber: number;
+    priorPage: string;
+  }) => Promise<CompletionResponse>
+  ```
+</ParamField>
+
+### Extraction Configuration
+
+<ParamField path="schema" type="Record<string, unknown>">
+  JSON Schema for structured data extraction. When provided, Zerox will extract structured data matching this schema.
+  
+  ```typescript
+  {
+    type: 'object',
+    properties: {
+      fieldName: { type: 'string' },
+      amount: { type: 'number' }
+    }
+  }
+  ```
+</ParamField>
+
+<ParamField path="extractOnly" type="boolean">
+  When `true`, skips OCR and only performs structured data extraction. Requires `schema` to be provided.
+  
+  This mode automatically enables `directImageExtraction`.
+  
+  Default: `false`
+</ParamField>
+
+<ParamField path="extractPerPage" type="string[]">
+  List of schema property names to extract on a per-page basis rather than from the full document.
+  
+  ```typescript
+  extractPerPage: ['pageNumber', 'section']
+  ```
+</ParamField>
+
+<ParamField path="enableHybridExtraction" type="boolean">
+  When `true`, uses both OCR text and images for extraction, improving accuracy.
+  
+  Requirements:
+  - Requires `schema` to be provided
+  - Cannot be used with `directImageExtraction` or `extractOnly`
+  
+  Default: `false`
+</ParamField>
+
+<ParamField path="directImageExtraction" type="boolean">
+  When `true`, performs extraction directly from images without OCR text.
+  
+  Default: `false`
+</ParamField>
+
+<ParamField path="extractionModel" type="ModelOptions | string">
+  Model to use for extraction. If not specified, uses the same model as OCR.
+</ParamField>
+
+<ParamField path="extractionModelProvider" type="ModelProvider | string">
+  Model provider for extraction. If not specified, uses the same provider as OCR.
+</ParamField>
+
+<ParamField path="extractionCredentials" type="ModelCredentials">
+  Credentials for the extraction model. If not specified, uses the same credentials as OCR.
+</ParamField>
+
+<ParamField path="extractionLlmParams" type="Partial<LLMParams>">
+  LLM parameters for extraction. If not specified, uses the same parameters as OCR.
+</ParamField>
+
+<ParamField path="extractionPrompt" type="string">
+  Custom prompt for the extraction process.
+</ParamField>
+
+### OCR Configuration
+
+<ParamField path="prompt" type="string">
+  Custom prompt to guide the OCR process. Use this to provide specific instructions about how to extract or format the text.
+</ParamField>
+
+<ParamField path="maintainFormat" type="boolean">
+  When `true`, processes pages sequentially to maintain formatting consistency across pages.
+  
+  Requirements:
+  - Cannot be used with `extractOnly` mode
+  - Disables concurrent processing
+  
+  Default: `false`
+</ParamField>
+
+<ParamField path="correctOrientation" type="boolean">
+  When `true`, automatically detects and corrects page orientation using Tesseract OCR.
+  
+  Default: `true`
+</ParamField>
+
+<ParamField path="trimEdges" type="boolean">
+  When `true`, automatically trims white edges from images before processing.
+  
+  Default: `true`
+</ParamField>
+
+### Image Processing
+
+<ParamField path="imageDensity" type="number">
+  DPI (dots per inch) for PDF to image conversion. Higher values produce better quality but larger files.
+  
+  Typical values: 150-300
+</ParamField>
+
+<ParamField path="imageHeight" type="number">
+  Target height in pixels for converted images. Width is adjusted proportionally.
+</ParamField>
+
+<ParamField path="imageFormat" type="'png' | 'jpeg'">
+  Format for converted images.
+  
+  Default: `"png"`
+</ParamField>
+
+<ParamField path="maxImageSize" type="number">
+  Maximum image size in megabytes. Images larger than this will be compressed.
+  
+  Default: `15`
+</ParamField>
+
+<ParamField path="pagesToConvertAsImages" type="number | number[]">
+  Specify which pages to process:
+  - `-1`: Process all pages (default)
+  - `number`: Process a single page
+  - `number[]`: Process specific pages (e.g., `[1, 3, 5]`)
+  
+  Default: `-1`
+</ParamField>
+
+### Performance & Reliability
+
+<ParamField path="concurrency" type="number">
+  Maximum number of pages to process concurrently. Higher values increase speed but use more resources.
+  
+  Default: `10`
+</ParamField>
+
+<ParamField path="maxRetries" type="number">
+  Maximum number of retry attempts for failed operations.
+  
+  Default: `1`
+</ParamField>
+
+<ParamField path="errorMode" type="ErrorMode">
+  How to handle errors during processing:
+  - `ErrorMode.IGNORE`: Continue processing remaining pages (default)
+  - `ErrorMode.THROW`: Throw an error immediately on failure
+  
+  Default: `ErrorMode.IGNORE`
+</ParamField>
+
+<ParamField path="maxTesseractWorkers" type="number">
+  Maximum number of Tesseract OCR workers for orientation correction.
+  - `-1`: Unlimited (default)
+  - `number`: Limit to specific count
+  
+  Default: `-1`
+</ParamField>
+
+### File Management
+
+<ParamField path="outputDir" type="string">
+  Directory to save the aggregated markdown output. If not specified, output is only returned in the response.
+</ParamField>
+
+<ParamField path="tempDir" type="string">
+  Directory for temporary files during processing.
+  
+  Default: `os.tmpdir()`
+</ParamField>
+
+<ParamField path="cleanup" type="boolean">
+  When `true`, automatically removes temporary files after processing.
+  
+  Default: `true`
+</ParamField>
+
+## Example with Multiple Parameters
+
+```typescript
+import { zerox, ModelProvider, ErrorMode } from 'zerox';
+
+const result = await zerox({
+  filePath: './document.pdf',
+  credentials: {
+    apiKey: process.env.OPENAI_API_KEY
+  },
+  model: 'gpt-4o',
+  modelProvider: ModelProvider.OPENAI,
+  llmParams: {
+    temperature: 0.1,
+    maxTokens: 4000
+  },
+  concurrency: 5,
+  maxRetries: 3,
+  errorMode: ErrorMode.THROW,
+  correctOrientation: true,
+  trimEdges: true,
+  maintainFormat: true,
+  maxImageSize: 10,
+  outputDir: './output',
+  cleanup: true,
+  schema: {
+    type: 'object',
+    properties: {
+      title: { type: 'string' },
+      sections: {
+        type: 'array',
+        items: { type: 'string' }
+      }
+    }
+  }
+});
+```

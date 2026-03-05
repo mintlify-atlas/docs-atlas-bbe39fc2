@@ -1,0 +1,286 @@
+---
+title: 'Google Gemini'
+description: 'Configure Zerox with Google Gemini models for document OCR'
+---
+
+## Overview
+
+Google Gemini provides powerful multimodal AI models through the Google AI Studio API. Zerox supports all Gemini 1.5 and 2.0 vision models for document processing and data extraction.
+
+## Credentials
+
+To use Google Gemini models, you need an API key:
+
+<ParamField path="credentials.apiKey" type="string" required>
+  Your Google AI Studio API key. Can be obtained from [Google AI Studio](https://aistudio.google.com/apikey).
+</ParamField>
+
+### Environment Variable
+
+```bash
+export GEMINI_API_KEY="your-api-key"
+```
+
+## Supported Models
+
+The following Gemini models are available through Zerox:
+
+| Model | Model ID | Description |
+|-------|----------|-------------|
+| Gemini 2.5 Pro | `gemini-2.5-pro-preview-03-25` | Latest Gemini 2.5 model (preview) |
+| Gemini 2.0 Flash | `gemini-2.0-flash-001` | Fast multimodal model |
+| Gemini 2.0 Flash Lite | `gemini-2.0-flash-lite-preview-02-05` | Lightweight Flash variant (preview) |
+| Gemini 1.5 Pro | `gemini-1.5-pro` | Most capable 1.5 model |
+| Gemini 1.5 Flash | `gemini-1.5-flash` | Fast and efficient |
+| Gemini 1.5 Flash-8B | `gemini-1.5-flash-8b` | Smallest, fastest model |
+
+## Configuration
+
+### Basic Example
+
+```typescript
+import { zerox } from "zerox";
+import { ModelOptions, ModelProvider } from "zerox/node-zerox/dist/types";
+
+const result = await zerox({
+  filePath: "path/to/document.pdf",
+  modelProvider: ModelProvider.GOOGLE,
+  model: ModelOptions.GOOGLE_GEMINI_1_5_PRO,
+  credentials: {
+    apiKey: process.env.GEMINI_API_KEY,
+  },
+});
+```
+
+### With Environment Variable
+
+```typescript
+import { zerox } from "zerox";
+import { ModelOptions, ModelProvider } from "zerox/node-zerox/dist/types";
+
+const result = await zerox({
+  filePath: "path/to/document.pdf",
+  modelProvider: ModelProvider.GOOGLE,
+  model: ModelOptions.GOOGLE_GEMINI_2_FLASH,
+  credentials: {
+    apiKey: process.env.GEMINI_API_KEY,
+  },
+});
+```
+
+## LLM Parameters
+
+Google Gemini models support the following optional parameters:
+
+<ParamField path="llmParams.temperature" type="number" default="1">
+  Controls randomness in the output. Values range from 0 to 2. Lower values make output more focused and deterministic.
+</ParamField>
+
+<ParamField path="llmParams.maxOutputTokens" type="number" default="8192">
+  Maximum number of tokens to generate in the completion. Note: Gemini uses `maxOutputTokens` instead of `maxTokens`.
+</ParamField>
+
+<ParamField path="llmParams.topP" type="number" default="0.95">
+  Nucleus sampling parameter. Values range from 0 to 1. Only `temperature` or `topP` should be modified, not both.
+</ParamField>
+
+<ParamField path="llmParams.frequencyPenalty" type="number" default="0">
+  Not supported by Gemini models. This parameter is ignored.
+</ParamField>
+
+<ParamField path="llmParams.presencePenalty" type="number" default="0">
+  Not supported by Gemini models. This parameter is ignored.
+</ParamField>
+
+### Example with Parameters
+
+```typescript
+import { zerox } from "zerox";
+import { ModelOptions, ModelProvider } from "zerox/node-zerox/dist/types";
+
+const result = await zerox({
+  filePath: "path/to/document.pdf",
+  modelProvider: ModelProvider.GOOGLE,
+  model: ModelOptions.GOOGLE_GEMINI_1_5_FLASH,
+  credentials: {
+    apiKey: process.env.GEMINI_API_KEY,
+  },
+  llmParams: {
+    temperature: 0.3,
+    maxOutputTokens: 8192,
+    topP: 0.9,
+  },
+});
+```
+
+<Note>
+Gemini uses `maxOutputTokens` instead of `maxTokens`. Zerox automatically handles this conversion when using Google models.
+</Note>
+
+## Data Extraction
+
+Gemini models support structured data extraction using JSON schemas:
+
+```typescript
+import { zerox } from "zerox";
+import { ModelOptions, ModelProvider } from "zerox/node-zerox/dist/types";
+
+const schema = {
+  type: "object",
+  properties: {
+    title: { type: "string" },
+    authors: {
+      type: "array",
+      items: { type: "string" },
+    },
+    publication_date: { type: "string" },
+    abstract: { type: "string" },
+    sections: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          heading: { type: "string" },
+          content: { type: "string" },
+        },
+      },
+    },
+  },
+};
+
+const result = await zerox({
+  filePath: "research-paper.pdf",
+  modelProvider: ModelProvider.GOOGLE,
+  model: ModelOptions.GOOGLE_GEMINI_1_5_PRO,
+  credentials: {
+    apiKey: process.env.GEMINI_API_KEY,
+  },
+  extractOnly: true,
+  schema: schema,
+});
+
+console.log(result.extracted);
+```
+
+<Info>
+Gemini uses native JSON schema support with `responseMimeType: "application/json"` for structured extraction. The output is automatically parsed and validated.
+</Info>
+
+## Error Handling
+
+```typescript
+import { zerox } from "zerox";
+import { ErrorMode, ModelProvider, ModelOptions } from "zerox/node-zerox/dist/types";
+
+try {
+  const result = await zerox({
+    filePath: "document.pdf",
+    modelProvider: ModelProvider.GOOGLE,
+    model: ModelOptions.GOOGLE_GEMINI_1_5_PRO,
+    credentials: {
+      apiKey: process.env.GEMINI_API_KEY,
+    },
+    errorMode: ErrorMode.THROW,
+  });
+} catch (error) {
+  console.error("OCR failed:", error);
+}
+```
+
+## Image Processing
+
+Gemini models have specific requirements for image input:
+
+<Warning>
+Gemini API expects images to be provided after text prompts in the message content. Zerox automatically handles this ordering, but be aware that this differs from OpenAI's format.
+</Warning>
+
+### Image Format Support
+
+Gemini supports the following image formats:
+- PNG
+- JPEG
+- WebP
+- HEIC
+- HEIF
+
+Zerox converts document pages to PNG format by default, which is fully supported.
+
+## Rate Limits
+
+Google Gemini API has the following rate limits (as of the latest update):
+
+| Model | Requests per minute | Tokens per minute |
+|-------|---------------------|-------------------|
+| Gemini 1.5 Pro | 10 | 4M input / 8K output |
+| Gemini 1.5 Flash | 15 | 4M input / 8K output |
+| Gemini 1.5 Flash-8B | 15 | 4M input / 8K output |
+| Gemini 2.0 Flash | 10 | 4M input / 8K output |
+
+Adjust the `concurrency` parameter to stay within limits:
+
+```typescript
+const result = await zerox({
+  filePath: "large-document.pdf",
+  modelProvider: ModelProvider.GOOGLE,
+  model: ModelOptions.GOOGLE_GEMINI_1_5_FLASH,
+  credentials: {
+    apiKey: process.env.GEMINI_API_KEY,
+  },
+  concurrency: 10, // Stay within rate limits
+});
+```
+
+## Context Window
+
+Gemini models have large context windows:
+
+- **Gemini 1.5 Pro**: Up to 2 million tokens
+- **Gemini 1.5 Flash**: Up to 1 million tokens
+- **Gemini 2.0 Flash**: Up to 1 million tokens
+
+This allows processing of very large documents in a single request.
+
+## Token Usage Tracking
+
+```typescript
+const result = await zerox({
+  filePath: "document.pdf",
+  modelProvider: ModelProvider.GOOGLE,
+  model: ModelOptions.GOOGLE_GEMINI_1_5_PRO,
+  credentials: {
+    apiKey: process.env.GEMINI_API_KEY,
+  },
+});
+
+console.log(`Input tokens: ${result.inputTokens}`);
+console.log(`Output tokens: ${result.outputTokens}`);
+console.log(`Total pages: ${result.pages.length}`);
+```
+
+<Note>
+Gemini's token usage is reported through `usageMetadata.promptTokenCount` (input) and `usageMetadata.candidatesTokenCount` (output). Zerox maps these to the standard `inputTokens` and `outputTokens` fields.
+</Note>
+
+## Best Practices
+
+- Use `gemini-1.5-flash-8b` for cost-effective processing of simple documents
+- Use `gemini-1.5-pro` or `gemini-2.5-pro` for complex documents with tables, charts, and detailed layouts
+- Set `temperature: 0` for deterministic output when consistency is critical
+- Leverage Gemini's large context window for processing multi-page documents
+- Monitor token usage to optimize costs
+- Use `concurrency` parameter to manage rate limits effectively
+
+## Differences from Other Providers
+
+### Parameter Naming
+- Gemini uses `maxOutputTokens` instead of `maxTokens`
+- Log probabilities are not supported by Gemini
+
+### Message Format
+- Images must follow text in prompt construction (Zerox handles this automatically)
+- System prompts are included in the user message content
+
+### Safety Settings
+- Gemini has built-in safety filters that may block certain content
+- If you encounter blocked responses, review Google's [safety settings documentation](https://ai.google.dev/gemini-api/docs/safety-settings)

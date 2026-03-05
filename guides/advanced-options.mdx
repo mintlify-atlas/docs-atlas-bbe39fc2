@@ -1,0 +1,430 @@
+---
+title: Advanced Options
+description: Fine-tune OCR behavior with advanced configuration options
+---
+
+## Overview
+
+Zerox provides advanced options to control image processing, formatting, and OCR behavior. This guide covers all advanced configuration parameters.
+
+## Format Preservation
+
+### Maintain Format
+
+Preserve document formatting across pages for consistent output:
+
+```javascript
+import { zerox } from 'zerox-ocr';
+
+const result = await zerox({
+  filePath: 'report.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  maintainFormat: true  // Preserve formatting across pages
+});
+```
+
+<ParamField path="maintainFormat" type="boolean" default={false}>
+  When `true`, Zerox processes pages sequentially and provides context from the previous page to maintain consistent formatting (headers, tables, lists, etc.). This increases accuracy but reduces concurrency.
+  
+  **Important**: Cannot be used with `extractOnly` mode.
+</ParamField>
+
+<Note>
+  With `maintainFormat: true`, pages are processed sequentially rather than in parallel. This ensures formatting consistency but increases processing time.
+</Note>
+
+### How It Works
+
+When enabled, each page receives context from the previous page:
+
+```javascript
+// Internal behavior (simplified)
+let priorPage = "";
+
+for (const page of pages) {
+  const result = await processPage(page, {
+    prompt: `Maintain consistent formatting with: ${priorPage}`
+  });
+  priorPage = result.content;
+}
+```
+
+## Image Processing
+
+### Orientation Correction
+
+Automatically detect and correct image orientation:
+
+```javascript
+const result = await zerox({
+  filePath: 'scanned-document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  correctOrientation: true  // Default: true
+});
+```
+
+<ParamField path="correctOrientation" type="boolean" default={true}>
+  Uses Tesseract OCR to detect image orientation and rotates images as needed. Improves accuracy for scanned or rotated documents.
+</ParamField>
+
+The system uses Tesseract workers to analyze each image:
+
+```javascript
+// Determines optimal rotation (0°, 90°, 180°, 270°)
+const rotation = await determineOptimalRotation(image);
+console.log(`Rotating image ${rotation} degrees`);
+```
+
+### Edge Trimming
+
+Remove whitespace and borders from images:
+
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  trimEdges: true  // Default: true
+});
+```
+
+<ParamField path="trimEdges" type="boolean" default={true}>
+  Automatically trims whitespace around the content. Reduces token usage and improves focus on actual content.
+</ParamField>
+
+## Image Conversion Options
+
+### Image Format
+
+Choose the format for converted images:
+
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  imageFormat: 'jpeg'  // 'png' (default) or 'jpeg'
+});
+```
+
+<ParamField path="imageFormat" type="string" default="png">
+  Format for converted images:
+  - `png`: Higher quality, larger file size
+  - `jpeg`: Smaller file size, slight quality loss
+</ParamField>
+
+### Image Density
+
+Control the resolution of PDF-to-image conversion:
+
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  imageDensity: 300  // DPI (dots per inch)
+});
+```
+
+<ParamField path="imageDensity" type="number">
+  DPI for PDF-to-image conversion. Higher values produce clearer images but larger file sizes.
+  - 150 DPI: Low quality, faster processing
+  - 300 DPI: Standard quality (recommended)
+  - 600 DPI: High quality, slower processing
+</ParamField>
+
+### Image Height
+
+Specify a fixed height for converted images:
+
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  imageHeight: 2048  // Height in pixels
+});
+```
+
+<ParamField path="imageHeight" type="number">
+  Fixed height for images in pixels. Width is adjusted to maintain aspect ratio. Useful for standardizing image sizes.
+</ParamField>
+
+### Image Compression
+
+Automatically compress images to reduce size:
+
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  maxImageSize: 10  // Maximum size in MB
+});
+```
+
+<ParamField path="maxImageSize" type="number" default={15}>
+  Maximum image size in MB. Images larger than this are automatically compressed. Set to `0` to disable compression.
+</ParamField>
+
+The compression algorithm:
+
+```javascript
+// Starts at 90% quality, reduces by 10% until target size is reached
+let quality = 90;
+while (imageSize > maxSize && quality >= 20) {
+  compressedImage = await compress(image, quality);
+  quality -= 10;
+}
+```
+
+## Page Selection
+
+Process specific pages instead of the entire document:
+
+```javascript
+// Process single page
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  pagesToConvertAsImages: 5  // Only page 5
+});
+
+// Process multiple pages
+const result2 = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  pagesToConvertAsImages: [1, 3, 5, 7]  // Specific pages
+});
+
+// Process all pages (default)
+const result3 = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  pagesToConvertAsImages: -1  // All pages (default)
+});
+```
+
+<ParamField path="pagesToConvertAsImages" type="number | number[]" default={-1}>
+  Pages to process:
+  - `-1`: Process all pages (default)
+  - `number`: Process single page (1-indexed)
+  - `number[]`: Process specific pages
+  
+  Invalid page numbers are filtered out automatically.
+</ParamField>
+
+## Concurrency Control
+
+Control parallel processing of pages:
+
+```javascript
+const result = await zerox({
+  filePath: 'large-document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  concurrency: 5  // Process 5 pages at a time
+});
+```
+
+<ParamField path="concurrency" type="number" default={10}>
+  Maximum number of pages to process concurrently. Higher values increase speed but also API rate limit risk.
+  
+  **Note**: Ignored when `maintainFormat: true` (sequential processing).
+</ParamField>
+
+See [Performance Tuning](/guides/performance-tuning) for optimization strategies.
+
+## Tesseract Workers
+
+Configure Tesseract OCR worker pool:
+
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  correctOrientation: true,
+  maxTesseractWorkers: 8  // Maximum worker threads
+});
+```
+
+<ParamField path="maxTesseractWorkers" type="number" default={-1}>
+  Maximum number of Tesseract worker threads for orientation detection:
+  - `-1`: Unlimited (default)
+  - `number`: Limit worker count
+  
+  Only relevant when `correctOrientation: true`.
+</ParamField>
+
+By default, Zerox creates 3 initial workers and scales up as needed:
+
+```javascript
+// From constants.ts
+const NUM_STARTING_WORKERS = 3;
+
+// Workers scale based on document size
+if (numPages > NUM_STARTING_WORKERS) {
+  await addMoreWorkers(numPages - NUM_STARTING_WORKERS);
+}
+```
+
+## Custom Prompts
+
+Provide custom instructions for OCR:
+
+```javascript
+const result = await zerox({
+  filePath: 'technical-doc.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  prompt: `
+    Additional instructions:
+    - Preserve all code blocks with syntax highlighting
+    - Convert diagrams to Mermaid syntax when possible
+    - Keep all mathematical equations in LaTeX format
+  `
+});
+```
+
+<ParamField path="prompt" type="string">
+  Custom instructions appended to the system prompt. Use to provide domain-specific guidance.
+</ParamField>
+
+The base system prompt is defined in `constants.ts`:
+
+```javascript
+const SYSTEM_PROMPT_BASE = `
+Convert the following document to markdown.
+Return only the markdown with no explanation text.
+
+RULES:
+  - Include all information on the page
+  - Return tables in HTML format
+  - Interpret charts & infographics to markdown
+  - Use ☐ and ☑ for checkboxes
+  - Wrap logos: <logo>Brand Name</logo>
+  - Wrap watermarks: <watermark>TEXT</watermark>
+  - Wrap page numbers: <page_number>14</page_number>
+`;
+```
+
+## LLM Parameters
+
+Fine-tune model behavior:
+
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  llmParams: {
+    temperature: 0.1,     // Lower = more deterministic
+    maxTokens: 4096,      // Maximum output tokens
+    topP: 0.9,           // Nucleus sampling
+    frequencyPenalty: 0,  // Penalize frequent tokens
+    presencePenalty: 0,   // Penalize repeated topics
+    logprobs: true        // Return log probabilities
+  }
+});
+```
+
+<ParamField path="llmParams" type="object">
+  Model parameters. Available options depend on the provider:
+  
+  **OpenAI/Azure:**
+  - `temperature` (0-2): Randomness (default: 0.7)
+  - `maxTokens`: Maximum output tokens
+  - `topP` (0-1): Nucleus sampling
+  - `frequencyPenalty` (-2 to 2): Penalize frequent tokens
+  - `presencePenalty` (-2 to 2): Penalize repeated content
+  - `logprobs` (boolean): Return log probabilities
+  
+  **Bedrock:**
+  - Similar to OpenAI, but no `logprobs`
+  
+  **Google:**
+  - Uses `maxOutputTokens` instead of `maxTokens`
+</ParamField>
+
+## Custom Model Function
+
+Provide a custom function for OCR processing:
+
+```javascript
+import { CompletionResponse } from 'zerox-ocr';
+
+const customModel = async ({
+  buffers,
+  image,
+  maintainFormat,
+  pageNumber,
+  priorPage
+}) => {
+  // Your custom vision model logic
+  const result = await myVisionModel(buffers[0]);
+  
+  return {
+    content: result.text,
+    inputTokens: result.inputTokens,
+    outputTokens: result.outputTokens
+  } as CompletionResponse;
+};
+
+const result = await zerox({
+  filePath: 'document.pdf',
+  customModelFunction: customModel
+});
+```
+
+<ParamField path="customModelFunction" type="function">
+  Custom function for OCR processing. Receives:
+  - `buffers`: Array of image buffers (may be split for tall images)
+  - `image`: Path to the image file
+  - `maintainFormat`: Whether to maintain formatting
+  - `pageNumber`: Current page number
+  - `priorPage`: Content from previous page (if `maintainFormat: true`)
+  
+  Must return a `CompletionResponse` object.
+</ParamField>
+
+## Complete Advanced Example
+
+```javascript
+import { zerox } from 'zerox-ocr';
+
+const result = await zerox({
+  // Input
+  filePath: 'technical-report.pdf',
+  pagesToConvertAsImages: [1, 2, 3, 4, 5],
+  
+  // Model configuration
+  model: 'gpt-4o',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  llmParams: {
+    temperature: 0.1,
+    maxTokens: 4096,
+    logprobs: true
+  },
+  
+  // Image processing
+  correctOrientation: true,
+  trimEdges: true,
+  imageFormat: 'png',
+  imageDensity: 300,
+  maxImageSize: 10,
+  
+  // OCR behavior
+  maintainFormat: true,
+  prompt: 'Preserve code blocks and technical diagrams',
+  
+  // Performance
+  concurrency: 5,
+  maxTesseractWorkers: 8,
+  
+  // Output
+  outputDir: './output',
+  tempDir: './temp',
+  cleanup: true
+});
+
+console.log(`Processed ${result.pages.length} pages`);
+console.log(`Total tokens: ${result.inputTokens + result.outputTokens}`);
+```
+
+## Next Steps
+
+- [Error Handling](/guides/error-handling) - Configure retry and error strategies
+- [Performance Tuning](/guides/performance-tuning) - Optimize processing speed
+- [Data Extraction](/guides/data-extraction) - Extract structured data

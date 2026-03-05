@@ -1,0 +1,244 @@
+---
+title: 'Node.js Installation'
+description: 'Install Zerox for Node.js and configure system dependencies'
+---
+
+## Prerequisites
+
+Before installing Zerox, ensure you have:
+
+- Node.js 14 or higher
+- npm, yarn, or pnpm package manager
+- System access to install dependencies (GraphicsMagick, Ghostscript)
+
+## Installation
+
+<Steps>
+  <Step title="Install the package">
+    Install Zerox using your preferred package manager:
+
+    <CodeGroup>
+      ```bash npm
+      npm install zerox
+      ```
+
+      ```bash yarn
+      yarn add zerox
+      ```
+
+      ```bash pnpm
+      pnpm add zerox
+      ```
+    </CodeGroup>
+
+    <Note>
+      The package includes a postinstall script that will attempt to automatically install system dependencies (GraphicsMagick, Ghostscript, LibreOffice, and Poppler).
+    </Note>
+  </Step>
+
+  <Step title="Install system dependencies">
+    Zerox requires **GraphicsMagick** and **Ghostscript** for PDF processing. These are typically installed automatically during the npm install process, but you may need to install them manually.
+
+    <Tabs>
+      <Tab title="Linux (Ubuntu/Debian)">
+        ```bash
+        sudo apt-get update
+        sudo apt-get install -y graphicsmagick ghostscript
+        ```
+
+        For processing non-PDF document formats (DOCX, XLSX, etc.), also install LibreOffice:
+
+        ```bash
+        sudo apt-get install -y libreoffice
+        ```
+      </Tab>
+
+      <Tab title="macOS">
+        Using Homebrew:
+
+        ```bash
+        brew install graphicsmagick ghostscript
+        ```
+
+        For processing non-PDF document formats:
+
+        ```bash
+        brew install --cask libreoffice
+        ```
+      </Tab>
+
+      <Tab title="Windows">
+        <Warning>
+          Windows requires manual installation of dependencies.
+        </Warning>
+
+        1. **GraphicsMagick**: Download and install from [http://www.graphicsmagick.org/download.html](http://www.graphicsmagick.org/download.html)
+        2. **Ghostscript**: Download and install from [https://www.ghostscript.com/download.html](https://www.ghostscript.com/download.html)
+        3. **LibreOffice** (optional): Download from [https://www.libreoffice.org/download/download/](https://www.libreoffice.org/download/download/)
+
+        Ensure all executables are added to your system PATH.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Verify installation">
+    Create a test file to verify everything is working:
+
+    ```typescript test-zerox.ts
+    import { zerox } from 'zerox';
+
+    async function test() {
+      try {
+        const result = await zerox({
+          filePath: 'https://omni-demo-data.s3.amazonaws.com/test/cs101.pdf',
+          credentials: {
+            apiKey: process.env.OPENAI_API_KEY || 'your-api-key',
+          },
+        });
+        console.log('Zerox is working!', result);
+      } catch (error) {
+        console.error('Installation error:', error);
+      }
+    }
+
+    test();
+    ```
+
+    Run the test:
+
+    ```bash
+    npx ts-node test-zerox.ts
+    ```
+
+    <Note>
+      You'll need a valid OpenAI API key (or another supported provider) to test the OCR functionality.
+    </Note>
+  </Step>
+</Steps>
+
+## Verification Commands
+
+Verify that system dependencies are correctly installed:
+
+```bash
+# Check GraphicsMagick
+gm -version
+
+# Check Ghostscript
+gs --version
+
+# Check LibreOffice (optional, for non-PDF documents)
+soffice --version
+```
+
+All commands should return version information without errors.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Error: 'gm' command not found">
+    GraphicsMagick is not installed or not in your system PATH.
+
+    **Solution:**
+    - On Linux: Run `sudo apt-get install -y graphicsmagick`
+    - On macOS: Run `brew install graphicsmagick`
+    - On Windows: Download and install from the official website, then add to PATH
+  </Accordion>
+
+  <Accordion title="Error: 'gs' command not found">
+    Ghostscript is not installed or not in your system PATH.
+
+    **Solution:**
+    - On Linux: Run `sudo apt-get install -y ghostscript`
+    - On macOS: Run `brew install ghostscript`
+    - On Windows: Download and install from ghostscript.com, then add to PATH
+  </Accordion>
+
+  <Accordion title="PDF conversion fails with 'operation not permitted' error">
+    This is often caused by security policies in newer versions of Ghostscript or ImageMagick.
+
+    **Solution (Linux/macOS):**
+    Edit the Ghostscript policy file:
+
+    ```bash
+    # Find the policy file
+    sudo find / -name "policy.xml" 2>/dev/null | grep ImageMagick
+
+    # Edit the file and add PDF permissions
+    sudo nano /etc/ImageMagick-*/policy.xml
+    ```
+
+    Add or modify the PDF policy line:
+    ```xml
+    <policy domain="coder" rights="read|write" pattern="PDF" />
+    ```
+  </Accordion>
+
+  <Accordion title="Postinstall script fails with permission errors">
+    The automatic dependency installation may fail if you don't have sudo access.
+
+    **Solution:**
+    - Install system dependencies manually using the commands in Step 2
+    - If using npm, you can skip the postinstall script with: `npm install --ignore-scripts zerox`
+    - Then manually install the system dependencies
+  </Accordion>
+
+  <Accordion title="Module not found after installation">
+    TypeScript types or module resolution issues.
+
+    **Solution:**
+    ```bash
+    # Clear node_modules and reinstall
+    rm -rf node_modules package-lock.json
+    npm install
+
+    # Or with yarn
+    rm -rf node_modules yarn.lock
+    yarn install
+    ```
+
+    Make sure your `tsconfig.json` has proper module resolution:
+    ```json
+    {
+      "compilerOptions": {
+        "moduleResolution": "node",
+        "esModuleInterop": true
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="DOCX/XLSX files not processing">
+    LibreOffice is required for non-PDF document formats.
+
+    **Solution:**
+    Install LibreOffice:
+    - Linux: `sudo apt-get install -y libreoffice`
+    - macOS: `brew install --cask libreoffice`
+    - Windows: Download from libreoffice.org
+
+    Verify with: `soffice --version`
+  </Accordion>
+</AccordionGroup>
+
+## Dependencies Reference
+
+Zerox uses the following system dependencies:
+
+| Dependency | Purpose | Required |
+|------------|---------|----------|
+| **GraphicsMagick** | Image processing and PDF-to-image conversion | Yes |
+| **Ghostscript** | PDF rendering engine | Yes |
+| **LibreOffice** | Convert DOCX, XLSX, PPT to PDF | Optional |
+| **Poppler** | Alternative PDF utilities | Optional |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Start using Zerox with your first OCR document
+  </Card>
+  <Card title="Configuration" icon="gear" href="/concepts/model-providers">
+    Configure models, providers, and processing options
+  </Card>
+</CardGroup>

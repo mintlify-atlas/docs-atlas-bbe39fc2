@@ -1,0 +1,551 @@
+---
+title: Performance Tuning
+description: Optimize Zerox for speed, cost, and quality
+---
+
+## Overview
+
+Zerox provides multiple strategies for optimizing performance based on your priorities: processing speed, API cost, or output quality. This guide covers all optimization techniques.
+
+## Concurrency Control
+
+The most impactful performance setting is concurrency, which controls parallel processing:
+
+```javascript
+import { zerox } from 'zerox-ocr';
+
+const result = await zerox({
+  filePath: 'large-document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  concurrency: 10  // Process 10 pages simultaneously
+});
+```
+
+<ParamField path="concurrency" type="number" default={10}>
+  Maximum number of pages to process concurrently. Higher values = faster processing but higher API load.
+</ParamField>
+
+### Concurrency Guidelines
+
+**High throughput (fast processing):**
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  concurrency: 20,  // High parallelism
+  model: 'gpt-4o-mini'  // Faster, cheaper model
+});
+```
+
+**Rate limit safety:**
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  concurrency: 3,   // Lower to avoid rate limits
+  maxRetries: 5     // More retries for robustness
+});
+```
+
+**Sequential processing:**
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  maintainFormat: true  // Forces sequential processing
+});
+```
+
+<Note>
+  When `maintainFormat: true`, pages are processed sequentially regardless of the `concurrency` setting. This ensures formatting consistency but reduces speed.
+</Note>
+
+## Page Selection
+
+Process only the pages you need:
+
+```javascript
+// Process specific pages only
+const result = await zerox({
+  filePath: '100-page-report.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  pagesToConvertAsImages: [1, 2, 10, 50]  // Only 4 pages
+});
+
+console.log(`Processed ${result.pages.length} pages instead of 100`);
+```
+
+<ParamField path="pagesToConvertAsImages" type="number | number[]" default={-1}>
+  Specify which pages to process:
+  - `-1`: All pages (default)
+  - `5`: Only page 5
+  - `[1, 2, 3]`: Specific pages
+</ParamField>
+
+### Use Cases
+
+**Extract first page only:**
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  pagesToConvertAsImages: 1  // First page only
+});
+```
+
+**Extract cover and summary pages:**
+```javascript
+const result = await zerox({
+  filePath: 'report.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  pagesToConvertAsImages: [1, 2, -1]  // Cover, TOC, last page
+});
+```
+
+## Image Compression
+
+Reduce image sizes to lower token usage and costs:
+
+```javascript
+const result = await zerox({
+  filePath: 'high-res-scan.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  maxImageSize: 5  // Compress to max 5MB per image
+});
+```
+
+<ParamField path="maxImageSize" type="number" default={15}>
+  Maximum image size in MB. Images are compressed using JPEG with quality reduction until they fit. Default is 15MB.
+</ParamField>
+
+### Compression Strategy
+
+From `utils/image.ts`:
+
+```typescript
+export const compressImage = async (
+  image: Buffer,
+  maxSize: number
+): Promise<Buffer> => {
+  const maxBytes = maxSize * 1024 * 1024;
+  
+  if (image.length <= maxBytes) {
+    return image;  // No compression needed
+  }
+
+  // Start at 90% quality, reduce by 10% until target size
+  let quality = 90;
+  let compressedImage: Buffer;
+
+  do {
+    compressedImage = await sharp(image)
+      .jpeg({ quality })
+      .toBuffer();
+    quality -= 10;
+
+    if (quality < 20) {
+      throw new Error('Unable to compress to target size');
+    }
+  } while (compressedImage.length > maxBytes);
+
+  return compressedImage;
+};
+```
+
+### Compression Examples
+
+**Aggressive compression (lower quality, faster):**
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  maxImageSize: 3,      // Small file size
+  imageFormat: 'jpeg'   // More compressible than PNG
+});
+```
+
+**High quality (larger files, better accuracy):**
+```javascript
+const result = await zerox({
+  filePath: 'technical-diagrams.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  maxImageSize: 20,     // Allow larger files
+  imageFormat: 'png'    // Lossless format
+});
+```
+
+**No compression:**
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  maxImageSize: 0  // Disable compression
+});
+```
+
+## Image Format and Resolution
+
+### Format Selection
+
+<Tabs>
+  <Tab title="JPEG (Faster, Smaller)">
+    ```javascript
+    const result = await zerox({
+      filePath: 'document.pdf',
+      credentials: { apiKey: process.env.OPENAI_API_KEY },
+      imageFormat: 'jpeg',  // Smaller files
+      maxImageSize: 5       // More effective compression
+    });
+    ```
+    
+    **Best for:**
+    - Text documents
+    - Scanned pages
+    - Cost optimization
+  </Tab>
+  
+  <Tab title="PNG (Higher Quality)">
+    ```javascript
+    const result = await zerox({
+      filePath: 'diagrams.pdf',
+      credentials: { apiKey: process.env.OPENAI_API_KEY },
+      imageFormat: 'png'  // Lossless, better for diagrams
+    });
+    ```
+    
+    **Best for:**
+    - Technical diagrams
+    - Charts and graphs
+    - High-detail content
+  </Tab>
+</Tabs>
+
+### Resolution Control
+
+```javascript
+// Lower resolution (faster, cheaper)
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  imageDensity: 150,  // Lower DPI
+  imageHeight: 1024   // Smaller images
+});
+
+// Higher resolution (better quality)
+const result2 = await zerox({
+  filePath: 'detailed-document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  imageDensity: 300,  // Standard quality
+  imageHeight: 2048   // Larger images
+});
+```
+
+## Model Selection
+
+Choose models based on your speed/cost/quality priorities:
+
+```javascript
+// Fast and cheap
+const result = await zerox({
+  filePath: 'simple-document.pdf',
+  model: 'gpt-4o-mini',  // Fastest, cheapest
+  credentials: { apiKey: process.env.OPENAI_API_KEY }
+});
+
+// Balanced
+const result2 = await zerox({
+  filePath: 'standard-document.pdf',
+  model: 'gpt-4o',  // Default, good balance
+  credentials: { apiKey: process.env.OPENAI_API_KEY }
+});
+
+// Highest quality
+const result3 = await zerox({
+  filePath: 'complex-document.pdf',
+  model: 'gpt-4.1',  // Best quality
+  credentials: { apiKey: process.env.OPENAI_API_KEY }
+});
+```
+
+### Available Models
+
+From `types.ts`:
+
+```typescript
+enum ModelOptions {
+  // OpenAI (fastest to slowest/cheapest to most expensive)
+  OPENAI_GPT_4O_MINI = "gpt-4o-mini",
+  OPENAI_GPT_4O = "gpt-4o",
+  OPENAI_GPT_4_1_MINI = "gpt-4.1-mini",
+  OPENAI_GPT_4_1 = "gpt-4.1",
+  
+  // Bedrock Claude
+  BEDROCK_CLAUDE_3_HAIKU_2024_10 = "anthropic.claude-3-5-haiku-20241022-v1:0",
+  BEDROCK_CLAUDE_3_SONNET_2024_10 = "anthropic.claude-3-5-sonnet-20241022-v2:0",
+  
+  // Google Gemini
+  GOOGLE_GEMINI_1_5_FLASH_8B = "gemini-1.5-flash-8b",
+  GOOGLE_GEMINI_1_5_FLASH = "gemini-1.5-flash",
+  GOOGLE_GEMINI_2_FLASH = "gemini-2.0-flash-001",
+}
+```
+
+## Tesseract Worker Optimization
+
+Optimize Tesseract workers for orientation correction:
+
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  correctOrientation: true,
+  maxTesseractWorkers: 8  // Parallel Tesseract processing
+});
+```
+
+<ParamField path="maxTesseractWorkers" type="number" default={-1}>
+  Maximum Tesseract worker threads:
+  - `-1`: Unlimited (default)
+  - `4-8`: Good balance for most systems
+  - `1`: Sequential processing
+  
+  Only relevant when `correctOrientation: true`.
+</ParamField>
+
+### Worker Scaling
+
+By default, Zerox starts with 3 workers and scales up:
+
+```typescript
+// From constants.ts
+const NUM_STARTING_WORKERS = 3;
+
+// Workers are added dynamically based on document size
+if (numPages > NUM_STARTING_WORKERS) {
+  await addWorkersToTesseractScheduler({
+    numWorkers: Math.min(
+      numPages - NUM_STARTING_WORKERS,
+      maxTesseractWorkers || Infinity
+    ),
+    scheduler
+  });
+}
+```
+
+**Disable orientation correction for speed:**
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  correctOrientation: false  // Skip Tesseract processing
+});
+```
+
+## Disable Image Processing
+
+Skip optional image processing steps:
+
+```javascript
+const result = await zerox({
+  filePath: 'clean-document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  correctOrientation: false,  // Skip orientation detection
+  trimEdges: false            // Skip edge trimming
+});
+```
+
+<ParamField path="correctOrientation" type="boolean" default={true}>
+  Detect and correct image orientation using Tesseract. Disable for speed if images are already correctly oriented.
+</ParamField>
+
+<ParamField path="trimEdges" type="boolean" default={true}>
+  Trim whitespace from images. Disable for speed if images don't have excess borders.
+</ParamField>
+
+## Performance Benchmarks
+
+Typical processing times for a 10-page document:
+
+### Speed Optimization
+
+```javascript
+const result = await zerox({
+  filePath: '10-page-doc.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  
+  // Speed settings
+  model: 'gpt-4o-mini',
+  concurrency: 20,
+  pagesToConvertAsImages: -1,
+  
+  // Skip processing
+  correctOrientation: false,
+  trimEdges: false,
+  
+  // Compression
+  maxImageSize: 3,
+  imageFormat: 'jpeg',
+  imageDensity: 150
+});
+
+// Typical result: ~15-30 seconds for 10 pages
+console.log(`Processing time: ${result.completionTime}ms`);
+```
+
+### Quality Optimization
+
+```javascript
+const result = await zerox({
+  filePath: '10-page-doc.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  
+  // Quality settings
+  model: 'gpt-4o',
+  maintainFormat: true,  // Sequential for consistency
+  
+  // Full processing
+  correctOrientation: true,
+  trimEdges: true,
+  
+  // Higher quality images
+  maxImageSize: 20,
+  imageFormat: 'png',
+  imageDensity: 300
+});
+
+// Typical result: ~60-120 seconds for 10 pages
+console.log(`Processing time: ${result.completionTime}ms`);
+```
+
+### Balanced Configuration
+
+```javascript
+const result = await zerox({
+  filePath: '10-page-doc.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  
+  // Default settings (good balance)
+  model: 'gpt-4o',
+  concurrency: 10,
+  correctOrientation: true,
+  trimEdges: true,
+  maxImageSize: 15,
+  imageFormat: 'png'
+});
+
+// Typical result: ~30-60 seconds for 10 pages
+console.log(`Processing time: ${result.completionTime}ms`);
+```
+
+## Cost Optimization
+
+Reduce API costs:
+
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  
+  // Use cheaper model
+  model: 'gpt-4o-mini',
+  
+  // Reduce image sizes (fewer tokens)
+  maxImageSize: 5,
+  imageFormat: 'jpeg',
+  imageDensity: 150,
+  
+  // Process fewer pages
+  pagesToConvertAsImages: [1, 2, 3],
+  
+  // Use shorter output
+  llmParams: {
+    maxTokens: 2048  // Limit output length
+  }
+});
+
+console.log(`Total tokens: ${result.inputTokens + result.outputTokens}`);
+```
+
+## Monitoring Performance
+
+Track performance metrics:
+
+```javascript
+const startTime = Date.now();
+
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  concurrency: 10
+});
+
+const totalTime = Date.now() - startTime;
+
+console.log('Performance Metrics:');
+console.log(`  Total time: ${totalTime}ms`);
+console.log(`  API time: ${result.completionTime}ms`);
+console.log(`  Pages: ${result.summary.totalPages}`);
+console.log(`  Time per page: ${(totalTime / result.summary.totalPages).toFixed(0)}ms`);
+console.log(`  Input tokens: ${result.inputTokens}`);
+console.log(`  Output tokens: ${result.outputTokens}`);
+console.log(`  Tokens per page: ${((result.inputTokens + result.outputTokens) / result.summary.totalPages).toFixed(0)}`);
+
+if (result.summary.ocr) {
+  console.log(`  Success rate: ${(result.summary.ocr.successful / result.summary.totalPages * 100).toFixed(1)}%`);
+}
+```
+
+## Recommended Configurations
+
+### Batch Processing (High Volume)
+
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  model: 'gpt-4o-mini',
+  concurrency: 15,
+  maxImageSize: 5,
+  imageFormat: 'jpeg',
+  errorMode: ErrorMode.IGNORE,
+  maxRetries: 2
+});
+```
+
+### Real-Time Processing (Low Latency)
+
+```javascript
+const result = await zerox({
+  filePath: 'single-page.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  model: 'gpt-4o-mini',
+  pagesToConvertAsImages: 1,
+  concurrency: 1,
+  correctOrientation: false,
+  maxImageSize: 3
+});
+```
+
+### High-Accuracy OCR
+
+```javascript
+const result = await zerox({
+  filePath: 'important-document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  model: 'gpt-4o',
+  maintainFormat: true,
+  correctOrientation: true,
+  trimEdges: true,
+  maxImageSize: 20,
+  imageFormat: 'png',
+  imageDensity: 300,
+  maxRetries: 5,
+  errorMode: ErrorMode.THROW
+});
+```
+
+## Next Steps
+
+- [Error Handling](/guides/error-handling) - Configure retry strategies
+- [Advanced Options](/guides/advanced-options) - Explore all configuration options
+- [Basic Usage](/guides/basic-usage) - Return to basics

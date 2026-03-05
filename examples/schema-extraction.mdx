@@ -1,0 +1,402 @@
+---
+title: 'Schema Extraction'
+description: 'Extract structured data from documents using JSON schemas'
+icon: 'brackets-curly'
+---
+
+## Overview
+
+Zerox allows you to extract structured data from documents by providing a JSON schema. This is useful when you need to extract specific information like invoices, receipts, forms, or any structured data rather than just converting the document to markdown.
+
+## Basic Schema Extraction
+
+To extract structured data, provide a JSON schema that defines the structure of the data you want to extract:
+
+<CodeGroup>
+```typescript Node.js
+import { zerox } from 'zerox';
+
+const result = await zerox({
+  filePath: './invoice.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  schema: {
+    type: 'object',
+    properties: {
+      invoiceNumber: {
+        type: 'string',
+        description: 'The invoice number'
+      },
+      date: {
+        type: 'string',
+        description: 'Invoice date in YYYY-MM-DD format'
+      },
+      total: {
+        type: 'number',
+        description: 'Total amount'
+      },
+      items: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            description: { type: 'string' },
+            quantity: { type: 'number' },
+            price: { type: 'number' }
+          }
+        }
+      }
+    },
+    required: ['invoiceNumber', 'total']
+  }
+});
+
+console.log(result.extracted);
+// {
+//   invoiceNumber: 'INV-2024-001',
+//   date: '2024-03-05',
+//   total: 1250.00,
+//   items: [
+//     { description: 'Product A', quantity: 2, price: 500.00 },
+//     { description: 'Product B', quantity: 1, price: 250.00 }
+//   ]
+// }
+```
+
+```python Python
+import os
+from pyzerox import zerox
+
+result = await zerox(
+    file_path="./invoice.pdf",
+    openai_api_key=os.getenv("OPENAI_API_KEY"),
+    schema={
+        "type": "object",
+        "properties": {
+            "invoice_number": {
+                "type": "string",
+                "description": "The invoice number"
+            },
+            "date": {
+                "type": "string",
+                "description": "Invoice date in YYYY-MM-DD format"
+            },
+            "total": {
+                "type": "number",
+                "description": "Total amount"
+            },
+            "items": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "description": {"type": "string"},
+                        "quantity": {"type": "number"},
+                        "price": {"type": "number"}
+                    }
+                }
+            }
+        },
+        "required": ["invoice_number", "total"]
+    }
+)
+
+print(result.extracted)
+```
+</CodeGroup>
+
+## Per-Page Extraction with extractPerPage
+
+For multi-page documents, you can use `extractPerPage` to specify which fields should be extracted from each page individually, while other fields are extracted from the entire document.
+
+<Note>
+This is useful when certain information appears on every page (like line items) while other information appears once in the document (like invoice number).
+</Note>
+
+<CodeGroup>
+```typescript Node.js
+import { zerox } from 'zerox';
+
+const result = await zerox({
+  filePath: './multi-page-invoice.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  schema: {
+    type: 'object',
+    properties: {
+      // Document-level fields (extracted once from all pages)
+      invoiceNumber: {
+        type: 'string',
+        description: 'The invoice number'
+      },
+      vendorName: {
+        type: 'string',
+        description: 'Name of the vendor'
+      },
+      // Page-level fields (extracted from each page)
+      lineItems: {
+        type: 'array',
+        description: 'Items found on this page',
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            quantity: { type: 'number' },
+            price: { type: 'number' }
+          }
+        }
+      }
+    }
+  },
+  // Extract lineItems from each page individually
+  extractPerPage: ['lineItems']
+});
+
+// Result structure:
+console.log(result.extracted);
+// {
+//   invoiceNumber: 'INV-2024-001',  // Extracted once from all pages
+//   vendorName: 'Acme Corp',         // Extracted once from all pages
+//   lineItems: [                     // Extracted per page
+//     { page: 1, value: [...] },
+//     { page: 2, value: [...] },
+//     { page: 3, value: [...] }
+//   ]
+// }
+```
+
+```python Python
+import os
+from pyzerox import zerox
+
+result = await zerox(
+    file_path="./multi-page-invoice.pdf",
+    openai_api_key=os.getenv("OPENAI_API_KEY"),
+    schema={
+        "type": "object",
+        "properties": {
+            "invoice_number": {
+                "type": "string",
+                "description": "The invoice number"
+            },
+            "vendor_name": {
+                "type": "string",
+                "description": "Name of the vendor"
+            },
+            "line_items": {
+                "type": "array",
+                "description": "Items found on this page",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "quantity": {"type": "number"},
+                        "price": {"type": "number"}
+                    }
+                }
+            }
+        }
+    },
+    extract_per_page=["line_items"]
+)
+```
+</CodeGroup>
+
+## Extract-Only Mode
+
+When you only need extracted data and don't need the OCR markdown output, use `extractOnly` mode. This skips the OCR step and directly processes the images for extraction, which is faster and uses fewer tokens.
+
+<Warning>
+Extract-only mode requires a schema. It cannot be used with `maintainFormat` as it skips the OCR step entirely.
+</Warning>
+
+<CodeGroup>
+```typescript Node.js
+import { zerox } from 'zerox';
+
+const result = await zerox({
+  filePath: './receipt.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  extractOnly: true,  // Skip OCR, only extract
+  schema: {
+    type: 'object',
+    properties: {
+      merchant: { type: 'string' },
+      date: { type: 'string' },
+      total: { type: 'number' },
+      paymentMethod: { type: 'string' }
+    },
+    required: ['merchant', 'total']
+  }
+});
+
+// result.pages will be empty
+// result.extracted contains the structured data
+console.log(result.extracted);
+```
+
+```python Python
+import os
+from pyzerox import zerox
+
+result = await zerox(
+    file_path="./receipt.pdf",
+    openai_api_key=os.getenv("OPENAI_API_KEY"),
+    extract_only=True,  # Skip OCR, only extract
+    schema={
+        "type": "object",
+        "properties": {
+            "merchant": {"type": "string"},
+            "date": {"type": "string"},
+            "total": {"type": "number"},
+            "payment_method": {"type": "string"}
+        },
+        "required": ["merchant", "total"]
+    }
+)
+```
+</CodeGroup>
+
+### When to Use Extract-Only Mode
+
+**Use extract-only mode when:**
+- You only need structured data, not the full text
+- Processing receipts, forms, or simple documents
+- You want to minimize token usage and cost
+- You need faster processing times
+
+**Don't use extract-only mode when:**
+- You need both markdown output and extracted data
+- You want to use `maintainFormat` for tables
+- You need to preserve document formatting
+
+## Custom Extraction Prompts
+
+You can customize the extraction prompt to guide the model:
+
+<CodeGroup>
+```typescript Node.js
+import { zerox } from 'zerox';
+
+const result = await zerox({
+  filePath: './medical-form.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  schema: {
+    type: 'object',
+    properties: {
+      patientName: { type: 'string' },
+      dateOfBirth: { type: 'string' },
+      diagnosis: { type: 'string' }
+    }
+  },
+  extractionPrompt: `Extract medical information from this form. 
+    Use YYYY-MM-DD format for dates. 
+    If a field is unclear or missing, return null.`
+});
+```
+
+```python Python
+import os
+from pyzerox import zerox
+
+result = await zerox(
+    file_path="./medical-form.pdf",
+    openai_api_key=os.getenv("OPENAI_API_KEY"),
+    schema={
+        "type": "object",
+        "properties": {
+            "patient_name": {"type": "string"},
+            "date_of_birth": {"type": "string"},
+            "diagnosis": {"type": "string"}
+        }
+    },
+    extraction_prompt="""Extract medical information from this form. 
+        Use YYYY-MM-DD format for dates. 
+        If a field is unclear or missing, return null."""
+)
+```
+</CodeGroup>
+
+## Schema Best Practices
+
+### Use Descriptive Field Names and Descriptions
+
+Clear descriptions help the model understand what to extract:
+
+```typescript
+schema: {
+  type: 'object',
+  properties: {
+    effectiveDate: {
+      type: 'string',
+      description: 'The date when the contract becomes effective, in YYYY-MM-DD format'
+    },
+    // Better than just: date: { type: 'string' }
+  }
+}
+```
+
+### Specify Required Fields
+
+Use the `required` array to ensure critical fields are extracted:
+
+```typescript
+schema: {
+  type: 'object',
+  properties: {
+    invoiceNumber: { type: 'string' },
+    total: { type: 'number' },
+    notes: { type: 'string' }
+  },
+  required: ['invoiceNumber', 'total']  // notes is optional
+}
+```
+
+### Use Appropriate Data Types
+
+Match the JSON schema type to your data:
+
+```typescript
+properties: {
+  quantity: { type: 'number' },      // For numeric values
+  isActive: { type: 'boolean' },     // For true/false
+  tags: {                            // For arrays
+    type: 'array',
+    items: { type: 'string' }
+  },
+  metadata: { type: 'object' }       // For nested objects
+}
+```
+
+## Error Handling
+
+Extraction may fail if the schema is invalid or the document doesn't contain the expected data. Always check the result:
+
+```typescript
+const result = await zerox({
+  filePath: './document.pdf',
+  openaiAPIKey: process.env.OPENAI_API_KEY,
+  schema: mySchema,
+  errorMode: 'throw'  // Throws errors instead of ignoring them
+});
+
+if (result.summary.extracted) {
+  console.log(`Successful extractions: ${result.summary.extracted.successful}`);
+  console.log(`Failed extractions: ${result.summary.extracted.failed}`);
+}
+
+if (result.extracted) {
+  // Process extracted data
+} else {
+  console.error('Extraction failed');
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Hybrid Extraction" icon="layer-group" href="/examples/hybrid-extraction">
+    Combine vision and text extraction for better accuracy
+  </Card>
+  <Card title="Maintain Format" icon="table" href="/examples/maintain-format">
+    Preserve table formatting across pages
+  </Card>
+</CardGroup>

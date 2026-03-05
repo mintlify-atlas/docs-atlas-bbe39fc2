@@ -1,0 +1,327 @@
+---
+title: 'Invoice Data Extraction'
+description: 'Extract structured data from invoices and receipts using schemas'
+---
+
+## Overview
+
+Zerox can extract structured data from documents using JSON schemas. This is particularly useful for invoices, receipts, forms, and other documents where you need specific fields extracted in a consistent format.
+
+## Use Case
+
+Perfect for:
+- Automating accounts payable processing
+- Extracting data from receipts and invoices
+- Processing tax documents
+- Building structured databases from unstructured documents
+- Form data extraction
+
+## Complete Example
+
+<CodeGroup>
+
+```typescript Node.js
+import { zerox } from "zerox";
+import { ModelOptions, ModelProvider } from "zerox/node-zerox/dist/types";
+
+// Define the schema for invoice data extraction
+const invoiceSchema = {
+  type: "object",
+  properties: {
+    invoice_number: {
+      type: "string",
+      description: "The invoice number",
+    },
+    date: {
+      type: "string",
+      description: "Invoice date",
+    },
+    vendor_name: {
+      type: "string",
+      description: "Name of the vendor/seller",
+    },
+    customer_name: {
+      type: "string",
+      description: "Name of the customer/buyer",
+    },
+    items: {
+      type: "array",
+      description: "Line items on the invoice",
+      items: {
+        type: "object",
+        properties: {
+          description: { type: "string" },
+          quantity: { type: "number" },
+          unit_price: { type: "number" },
+          total: { type: "number" },
+        },
+        required: ["description", "quantity", "unit_price", "total"],
+      },
+    },
+    subtotal: {
+      type: "number",
+      description: "Subtotal before tax and discounts",
+    },
+    tax: {
+      type: "number",
+      description: "Tax amount",
+    },
+    discount: {
+      type: "number",
+      description: "Discount amount",
+    },
+    total: {
+      type: "number",
+      description: "Final total amount",
+    },
+  },
+  required: [
+    "invoice_number",
+    "date",
+    "vendor_name",
+    "items",
+    "total",
+  ],
+};
+
+// Extract data from invoice
+const result = await zerox({
+  filePath: "https://omni-demo-data.s3.amazonaws.com/test/invoice.pdf",
+  credentials: {
+    apiKey: process.env.OPENAI_API_KEY || "",
+  },
+  model: ModelOptions.OPENAI_GPT_4O,
+  modelProvider: ModelProvider.OPENAI,
+  schema: invoiceSchema,
+  extractOnly: true, // Skip OCR, only extract structured data
+});
+
+console.log("Extracted invoice data:", JSON.stringify(result.extracted, null, 2));
+```
+
+```python Python
+import asyncio
+import os
+import json
+from pyzerox import zerox
+
+# Note: Python SDK doesn't support schema extraction yet
+# This example shows the OCR approach for invoice processing
+
+async def extract_invoice_data():
+    os.environ["OPENAI_API_KEY"] = "your-api-key"
+    
+    # Use custom prompt to guide extraction
+    custom_prompt = """
+    Extract the following information from this invoice:
+    - Invoice number
+    - Date
+    - Vendor name
+    - Customer name
+    - All line items with quantities and prices
+    - Subtotal, tax, and total amounts
+    
+    Format the output as a structured markdown with clear sections.
+    """
+    
+    result = await zerox(
+        file_path="https://omni-demo-data.s3.amazonaws.com/test/invoice.pdf",
+        model="gpt-4o",
+        custom_system_prompt=custom_prompt,
+    )
+    
+    # The markdown output will contain structured invoice data
+    print(result.pages[0].content)
+    
+    return result
+
+result = asyncio.run(extract_invoice_data())
+```
+
+</CodeGroup>
+
+## Expected Output
+
+```json
+{
+  "extracted": {
+    "invoice_number": "INV-2024-001234",
+    "date": "2024-03-05",
+    "vendor_name": "Acme Corporation",
+    "customer_name": "John Smith",
+    "items": [
+      {
+        "description": "Professional Services - March 2024",
+        "quantity": 40,
+        "unit_price": 150.00,
+        "total": 6000.00
+      },
+      {
+        "description": "Cloud Hosting (Monthly)",
+        "quantity": 1,
+        "unit_price": 299.99,
+        "total": 299.99
+      }
+    ],
+    "subtotal": 6299.99,
+    "tax": 629.99,
+    "discount": 0,
+    "total": 6929.98
+  },
+  "completionTime": 3245,
+  "inputTokens": 1842,
+  "outputTokens": 156
+}
+```
+
+## Extract Different Document Types
+
+### Receipt Extraction
+
+```typescript
+const receiptSchema = {
+  type: "object",
+  properties: {
+    merchant_name: { type: "string" },
+    date: { type: "string" },
+    time: { type: "string" },
+    items: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          price: { type: "number" },
+        },
+      },
+    },
+    total: { type: "number" },
+    payment_method: { type: "string" },
+  },
+  required: ["merchant_name", "date", "total"],
+};
+```
+
+### Property Report Extraction
+
+```typescript
+const propertySchema = {
+  type: "object",
+  properties: {
+    commercial_office: {
+      type: "object",
+      properties: {
+        average: { type: "string" },
+        median: { type: "string" },
+      },
+      required: ["average", "median"],
+    },
+    transactions_by_quarter: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          quarter: { type: "string" },
+          transactions: { type: "integer" },
+        },
+        required: ["quarter", "transactions"],
+      },
+    },
+    year: { type: "integer" },
+  },
+  required: ["commercial_office", "transactions_by_quarter", "year"],
+};
+```
+
+## Per-Page Extraction
+
+For multi-page documents, extract data from each page separately:
+
+```typescript
+const result = await zerox({
+  filePath: "multi-page-invoices.pdf",
+  credentials: { apiKey: process.env.OPENAI_API_KEY || "" },
+  schema: invoiceSchema,
+  extractOnly: true,
+  extractPerPage: ["invoice_number", "date", "total"], // Extract these fields per page
+});
+
+// Result will have extracted data organized by page
+console.log(result.extracted);
+```
+
+## Hybrid Extraction
+
+Combine OCR and image-based extraction for better accuracy:
+
+```typescript
+const result = await zerox({
+  filePath: "complex-invoice.pdf",
+  credentials: { apiKey: process.env.OPENAI_API_KEY || "" },
+  schema: invoiceSchema,
+  enableHybridExtraction: true, // Uses both markdown and images
+});
+```
+
+## Custom Extraction Prompts
+
+Guide the extraction with custom instructions:
+
+```typescript
+const result = await zerox({
+  filePath: "invoice.pdf",
+  credentials: { apiKey: process.env.OPENAI_API_KEY || "" },
+  schema: invoiceSchema,
+  extractOnly: true,
+  extractionPrompt: `
+    Extract invoice data with these specific rules:
+    - Parse dates in ISO 8601 format (YYYY-MM-DD)
+    - Convert all currencies to USD
+    - Round all amounts to 2 decimal places
+    - Extract line items in order of appearance
+  `,
+});
+```
+
+## Tips and Best Practices
+
+<Tip>
+**Schema Design**: Make required fields only those that MUST be present. Optional fields allow the model to handle variations in document formats.
+</Tip>
+
+<Tip>
+**Field Descriptions**: Add detailed descriptions to schema properties to guide the model in understanding what data to extract.
+</Tip>
+
+<Tip>
+**Model Selection**: Use `gpt-4o` for complex invoices with unusual layouts. Use `gpt-4o-mini` for simple, standard format invoices to save costs.
+</Tip>
+
+<Tip>
+**Direct Image Extraction**: Set `directImageExtraction: true` to extract directly from images instead of OCR text, which can be more accurate for tables and structured data.
+</Tip>
+
+<Tip>
+**Validation**: Always validate extracted data against your schema and check for missing required fields before using in production systems.
+</Tip>
+
+<Warning>
+**JSON Schema Standard**: Zerox uses the [JSON Schema standard](https://json-schema.org/understanding-json-schema/). Ensure your schema is valid before extraction.
+</Warning>
+
+## Using Different Models for Extraction
+
+You can use a different model for extraction than OCR:
+
+```typescript
+const result = await zerox({
+  filePath: "invoice.pdf",
+  credentials: { apiKey: process.env.OPENAI_API_KEY || "" },
+  // Use mini for OCR
+  model: ModelOptions.OPENAI_GPT_4O_MINI,
+  // Use full model for extraction
+  extractionModel: ModelOptions.OPENAI_GPT_4O,
+  extractionModelProvider: ModelProvider.OPENAI,
+  schema: invoiceSchema,
+});
+```

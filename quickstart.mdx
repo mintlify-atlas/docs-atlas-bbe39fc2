@@ -1,80 +1,527 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get started with Zerox in 5 minutes
 ---
 
-## Get started in three steps
+## Installation
 
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+<Tabs>
+  <Tab title="Node.js">
+    Install the Zerox package:
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    ```bash
+    npm install zerox
+    ```
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+    ### System Dependencies
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    Zerox requires **GraphicsMagick** and **Ghostscript** for PDF processing. These are usually installed automatically, but you may need to install them manually:
+    
+    <CodeGroup>
+    
+    ```bash Linux
+    sudo apt-get update
+    sudo apt-get install -y graphicsmagick ghostscript
+    ```
+    
+    ```bash macOS
+    brew install graphicsmagick ghostscript
+    ```
+    
+    ```bash Windows
+    # Download and install from:
+    # GraphicsMagick: http://www.graphicsmagick.org/download.html
+    # Ghostscript: https://www.ghostscript.com/download/gsdnld.html
+    ```
+    
+    </CodeGroup>
+  </Tab>
+  
+  <Tab title="Python">
+    Install the py-zerox package:
+    
+    ```bash
+    pip install py-zerox
+    ```
+    
+    ### System Dependencies
+    
+    Zerox requires **poppler** for PDF processing. Install it based on your platform:
+    
+    <CodeGroup>
+    
+    ```bash Linux
+    sudo apt-get update
+    sudo apt-get install -y poppler-utils
+    ```
+    
+    ```bash macOS
+    brew install poppler
+    ```
+    
+    ```bash Windows
+    # Download from: http://blog.alivate.com.au/poppler-windows/
+    # Add the bin/ folder to your PATH
+    ```
+    
+    </CodeGroup>
+    
+    <Note>
+    For detailed installation instructions by platform, see the [pdf2image documentation](https://pdf2image.readthedocs.io/en/latest/installation.html).
+    </Note>
+  </Tab>
+</Tabs>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+## Set Up API Keys
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+Zerox uses vision models from various providers. Set up your API key for your chosen provider:
 
-### Step 3: Go live
+<Tabs>
+  <Tab title="OpenAI">
+    ```bash
+    export OPENAI_API_KEY="your-api-key-here"
+    ```
+  </Tab>
+  
+  <Tab title="Azure OpenAI">
+    ```bash
+    export AZURE_API_KEY="your-api-key-here"
+    export AZURE_API_BASE="https://your-endpoint.openai.azure.com"
+    export AZURE_API_VERSION="2023-05-15"
+    ```
+  </Tab>
+  
+  <Tab title="AWS Bedrock">
+    ```bash
+    export AWS_ACCESS_KEY_ID="your-access-key-id"
+    export AWS_SECRET_ACCESS_KEY="your-secret-access-key"
+    export AWS_REGION="us-east-1"
+    ```
+  </Tab>
+  
+  <Tab title="Google Gemini">
+    ```bash
+    export GEMINI_API_KEY="your-api-key-here"
+    ```
+  </Tab>
+</Tabs>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+## Basic Usage
 
-## Next steps
+<Tabs>
+  <Tab title="Node.js">
+    ### Process a PDF from URL
+    
+    ```typescript
+    import { zerox } from "zerox";
+    
+    const result = await zerox({
+      filePath: "https://omni-demo-data.s3.amazonaws.com/test/cs101.pdf",
+      credentials: {
+        apiKey: process.env.OPENAI_API_KEY,
+      },
+    });
+    
+    console.log(result.pages[0].content); // Markdown content
+    console.log(`Processed ${result.pages.length} pages`);
+    console.log(`Total tokens: ${result.inputTokens + result.outputTokens}`);
+    ```
+    
+    ### Process a Local File
+    
+    ```typescript
+    import { zerox } from "zerox";
+    import path from "path";
+    
+    const result = await zerox({
+      filePath: path.resolve(__dirname, "./document.pdf"),
+      credentials: {
+        apiKey: process.env.OPENAI_API_KEY,
+      },
+    });
+    
+    // Access individual pages
+    result.pages.forEach((page) => {
+      console.log(`Page ${page.page}:`);
+      console.log(page.content);
+    });
+    ```
+    
+    ### Save Output to File
+    
+    ```typescript
+    import { zerox } from "zerox";
+    
+    const result = await zerox({
+      filePath: "path/to/document.pdf",
+      credentials: {
+        apiKey: process.env.OPENAI_API_KEY,
+      },
+      outputDir: "./output", // Saves as output/document.md
+    });
+    
+    console.log(`Saved to: ${result.fileName}.md`);
+    ```
+  </Tab>
+  
+  <Tab title="Python">
+    ### Process a PDF from URL
+    
+    ```python
+    from pyzerox import zerox
+    import os
+    import asyncio
+    
+    # Set up your API key
+    os.environ["OPENAI_API_KEY"] = "your-api-key-here"
+    
+    async def main():
+        result = await zerox(
+            file_path="https://omni-demo-data.s3.amazonaws.com/test/cs101.pdf",
+            model="gpt-4o-mini"
+        )
+        
+        print(result.pages[0].content)  # Markdown content
+        print(f"Processed {len(result.pages)} pages")
+        print(f"Total tokens: {result.input_tokens + result.output_tokens}")
+        
+        return result
+    
+    # Run the async function
+    result = asyncio.run(main())
+    ```
+    
+    ### Process a Local File
+    
+    ```python
+    from pyzerox import zerox
+    import os
+    import asyncio
+    
+    os.environ["OPENAI_API_KEY"] = "your-api-key-here"
+    
+    async def main():
+        result = await zerox(
+            file_path="./document.pdf",
+            model="gpt-4o-mini"
+        )
+        
+        # Access individual pages
+        for page in result.pages:
+            print(f"Page {page.page}:")
+            print(page.content)
+        
+        return result
+    
+    result = asyncio.run(main())
+    ```
+    
+    ### Save Output to File
+    
+    ```python
+    from pyzerox import zerox
+    import os
+    import asyncio
+    
+    os.environ["OPENAI_API_KEY"] = "your-api-key-here"
+    
+    async def main():
+        result = await zerox(
+            file_path="./document.pdf",
+            model="gpt-4o-mini",
+            output_dir="./output"  # Saves as output/document.md
+        )
+        
+        print(f"Saved to: {result.file_name}.md")
+        return result
+    
+    result = asyncio.run(main())
+    ```
+  </Tab>
+</Tabs>
 
-Now that you have your docs running, explore these key features:
+## Understanding the Output
 
-<CardGroup cols={2}>
+Zerox returns a structured object with the following information:
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+```typescript
+{
+  completionTime: number,      // Time taken in milliseconds
+  fileName: string,            // Sanitized filename without extension
+  inputTokens: number,         // Total input tokens used
+  outputTokens: number,        // Total output tokens used
+  pages: [                     // Array of processed pages
+    {
+      page: number,            // Page number (1-indexed)
+      content: string,         // Markdown content
+      contentLength: number,   // Length of content
+      status: "SUCCESS"        // Processing status
+    }
+  ],
+  summary: {
+    totalPages: number,
+    ocr: {
+      successful: number,
+      failed: number
+    }
+  }
+}
+```
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+The `pages` array contains the Markdown content for each page. You can combine them or process them individually based on your needs.
 </Note>
+
+## Using Different Models
+
+Zerox supports multiple vision model providers. Here's how to use each:
+
+<Tabs>
+  <Tab title="Node.js">
+    <CodeGroup>
+    
+    ```typescript OpenAI
+    import { zerox } from "zerox";
+    import { ModelOptions, ModelProvider } from "zerox/node-zerox/dist/types";
+    
+    const result = await zerox({
+      filePath: "path/to/file.pdf",
+      modelProvider: ModelProvider.OPENAI,
+      model: ModelOptions.OPENAI_GPT_4O,
+      credentials: {
+        apiKey: process.env.OPENAI_API_KEY,
+      },
+    });
+    ```
+    
+    ```typescript Azure OpenAI
+    import { zerox } from "zerox";
+    import { ModelOptions, ModelProvider } from "zerox/node-zerox/dist/types";
+    
+    const result = await zerox({
+      filePath: "path/to/file.pdf",
+      modelProvider: ModelProvider.AZURE,
+      model: ModelOptions.OPENAI_GPT_4O,
+      credentials: {
+        apiKey: process.env.AZURE_API_KEY,
+        endpoint: process.env.AZURE_ENDPOINT,
+      },
+    });
+    ```
+    
+    ```typescript AWS Bedrock
+    import { zerox } from "zerox";
+    import { ModelOptions, ModelProvider } from "zerox/node-zerox/dist/types";
+    
+    const result = await zerox({
+      filePath: "path/to/file.pdf",
+      modelProvider: ModelProvider.BEDROCK,
+      model: ModelOptions.BEDROCK_CLAUDE_3_SONNET_2024_10,
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+        region: process.env.AWS_REGION,
+      },
+    });
+    ```
+    
+    ```typescript Google Gemini
+    import { zerox } from "zerox";
+    import { ModelOptions, ModelProvider } from "zerox/node-zerox/dist/types";
+    
+    const result = await zerox({
+      filePath: "path/to/file.pdf",
+      modelProvider: ModelProvider.GOOGLE,
+      model: ModelOptions.GOOGLE_GEMINI_1_5_PRO,
+      credentials: {
+        apiKey: process.env.GEMINI_API_KEY,
+      },
+    });
+    ```
+    
+    </CodeGroup>
+  </Tab>
+  
+  <Tab title="Python">
+    <CodeGroup>
+    
+    ```python OpenAI
+    from pyzerox import zerox
+    import os
+    
+    os.environ["OPENAI_API_KEY"] = "your-api-key"
+    
+    result = await zerox(
+        file_path="path/to/file.pdf",
+        model="gpt-4o-mini"
+    )
+    ```
+    
+    ```python Azure OpenAI
+    from pyzerox import zerox
+    import os
+    
+    # Use the format: azure/<your_deployment_name>
+    model = "azure/gpt-4o-mini"
+    os.environ["AZURE_API_KEY"] = "your-azure-api-key"
+    os.environ["AZURE_API_BASE"] = "https://example-endpoint.openai.azure.com"
+    os.environ["AZURE_API_VERSION"] = "2023-05-15"
+    
+    result = await zerox(
+        file_path="path/to/file.pdf",
+        model=model
+    )
+    ```
+    
+    ```python Anthropic Claude
+    from pyzerox import zerox
+    import os
+    
+    model = "claude-3-opus-20240229"
+    os.environ["ANTHROPIC_API_KEY"] = "your-anthropic-api-key"
+    
+    result = await zerox(
+        file_path="path/to/file.pdf",
+        model=model
+    )
+    ```
+    
+    ```python Google Gemini
+    from pyzerox import zerox
+    import os
+    
+    # Use the format: gemini/<gemini_model>
+    model = "gemini/gemini-1.5-pro"
+    os.environ["GEMINI_API_KEY"] = "your-gemini-api-key"
+    
+    result = await zerox(
+        file_path="path/to/file.pdf",
+        model=model
+    )
+    ```
+    
+    ```python Vertex AI
+    from pyzerox import zerox
+    import json
+    
+    # Use the format: vertex_ai/<model_name>
+    model = "vertex_ai/gemini-1.5-flash-001"
+    
+    # Load your service account credentials
+    with open('path/to/vertex_ai_service_account.json', 'r') as file:
+        vertex_credentials = json.load(file)
+    
+    vertex_credentials_json = json.dumps(vertex_credentials)
+    
+    result = await zerox(
+        file_path="path/to/file.pdf",
+        model=model,
+        vertex_credentials=vertex_credentials_json
+    )
+    ```
+    
+    </CodeGroup>
+    
+    <Note>
+    Python uses [LiteLLM](https://docs.litellm.ai/docs/providers) under the hood, which supports 100+ LLMs. Model names follow the LiteLLM format: `provider/model-name`. Refer to the LiteLLM documentation for the complete list of supported models.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Common Configuration Options
+
+Here are some frequently used options to customize Zerox's behavior:
+
+<Tabs>
+  <Tab title="Node.js">
+    ```typescript
+    import { zerox } from "zerox";
+    
+    const result = await zerox({
+      filePath: "path/to/file.pdf",
+      credentials: {
+        apiKey: process.env.OPENAI_API_KEY,
+      },
+      
+      // Process only specific pages (e.g., pages 1, 3, and 5)
+      pagesToConvertAsImages: [1, 3, 5],
+      
+      // Control parallel processing
+      concurrency: 5,
+      
+      // Maintain consistent formatting across pages (slower but better for tables)
+      maintainFormat: true,
+      
+      // Save combined markdown to a file
+      outputDir: "./output",
+      
+      // Keep temporary images after processing
+      cleanup: false,
+      
+      // Add custom instructions for the vision model
+      prompt: "Extract all tables and preserve their structure exactly.",
+      
+      // Adjust image quality
+      imageDensity: 300,  // DPI for image conversion
+      imageHeight: 2048,  // Maximum height in pixels
+    });
+    ```
+  </Tab>
+  
+  <Tab title="Python">
+    ```python
+    from pyzerox import zerox
+    
+    result = await zerox(
+        file_path="path/to/file.pdf",
+        model="gpt-4o-mini",
+        
+        # Process only specific pages (e.g., pages 1, 3, and 5)
+        select_pages=[1, 3, 5],
+        
+        # Control parallel processing
+        concurrency=5,
+        
+        # Maintain consistent formatting across pages (slower but better for tables)
+        maintain_format=True,
+        
+        # Save combined markdown to a file
+        output_dir="./output",
+        
+        # Keep temporary images after processing
+        cleanup=False,
+        
+        # Use a custom system prompt
+        custom_system_prompt="Extract all tables and preserve their structure exactly.",
+        
+        # Adjust image quality
+        image_density=300,  # DPI for image conversion
+        image_height=(None, 2048),  # Maximum height in pixels
+    )
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+The `maintainFormat` option processes pages sequentially (not in parallel) because it passes the previous page's output as context. This is slower but produces more consistent formatting, especially for tables that span multiple pages.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Structured Data Extraction" icon="database" href="/guides/data-extraction">
+    Learn how to extract specific fields using JSON schemas
+  </Card>
+  
+  <Card title="Advanced Configuration" icon="sliders" href="/guides/advanced-options">
+    Explore all configuration options and fine-tuning
+  </Card>
+  
+  <Card title="Node.js API Reference" icon="code" href="/api/node/zerox">
+    Complete API documentation for all parameters
+  </Card>
+  
+  <Card title="Examples" icon="lightbulb" href="/examples/pdf-to-markdown">
+    Real-world examples and use cases
+  </Card>
+</CardGroup>

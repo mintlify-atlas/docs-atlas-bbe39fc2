@@ -1,122 +1,121 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Zerox",
+  "theme": "palm",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#1f6de4",
+    "light": "#8cbce8",
+    "dark": "#0a213e"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "https://media.brand.dev/4b006045-9486-4a34-934e-2bb2154f4a26.jpg",
+  "logo": {
+    "light": "/logo-light.png",
+    "dark": "/logo-dark.png"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/getomni-ai/zerox"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/getomni-ai/zerox"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Installation",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "installation/node",
+              "installation/python"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "concepts/how-it-works",
+              "concepts/supported-formats",
+              "concepts/model-providers"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Guides",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "guides/basic-usage",
+              "guides/data-extraction",
+              "guides/advanced-options",
+              "guides/error-handling",
+              "guides/performance-tuning"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Node.js SDK",
             "pages": [
-              "api-reference/introduction"
+              "api/node/zerox",
+              "api/node/parameters",
+              "api/node/response",
+              "api/node/types"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Python SDK",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/python/zerox",
+              "api/python/parameters",
+              "api/python/response"
+            ]
+          },
+          {
+            "group": "Model Providers",
+            "pages": [
+              "api/providers/openai",
+              "api/providers/azure",
+              "api/providers/bedrock",
+              "api/providers/gemini"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Examples",
+        "groups": [
+          {
+            "group": "Common Use Cases",
+            "pages": [
+              "examples/pdf-to-markdown",
+              "examples/invoice-extraction",
+              "examples/batch-processing",
+              "examples/custom-prompts"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "examples/schema-extraction",
+              "examples/hybrid-extraction",
+              "examples/maintain-format",
+              "examples/custom-models"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

@@ -1,0 +1,317 @@
+---
+title: 'Parameters'
+description: 'Complete reference for zerox() function parameters'
+---
+
+## Required Parameters
+
+<ParamField path="file_path" type="str" required>
+  The path or URL to the document file to process. Supports:
+  - Local file paths (e.g., `"./document.pdf"`)
+  - HTTP/HTTPS URLs (e.g., `"https://example.com/doc.pdf"`)
+  - Supported formats: PDF, DOCX, images, and more
+
+  ```python
+  result = await zerox(file_path="https://example.com/document.pdf")
+  ```
+</ParamField>
+
+## Model Configuration
+
+<ParamField path="model" type="str" default="gpt-4o-mini">
+  The vision model to use for OCR processing. The model name format depends on the provider.
+  
+  Refer to [LiteLLM Providers](https://docs.litellm.ai/docs/providers) for correct model names.
+
+  **Examples:**
+  - OpenAI: `"gpt-4o-mini"`, `"gpt-4o"`
+  - Azure: `"azure/gpt-4o-mini"` (format: `azure/<deployment_name>`)
+  - Gemini: `"gemini/gemini-1.5-flash"` (format: `gemini/<model_name>`)
+  - Anthropic: `"claude-3-opus-20240229"`
+  - Bedrock: `"bedrock/anthropic.claude-3-sonnet-20240229-v1:0"`
+  - Vertex AI: `"vertex_ai/gemini-1.5-flash-001"`
+
+  ```python
+  result = await zerox(
+      file_path="document.pdf",
+      model="gpt-4o"  # Use GPT-4 Vision
+  )
+  ```
+</ParamField>
+
+<ParamField path="custom_system_prompt" type="str" default="None">
+  Override the default system prompt used for OCR processing.
+  
+  <Note>
+  This parameter is unique to the Python SDK. The Node.js SDK does not support custom system prompts.
+  </Note>
+
+  When set, a warning will be raised to inform you that the default prompt has been overridden.
+
+  **Default prompt:** Instructs the model to convert documents to markdown, include all information, format tables as HTML, and use specific markers for logos, watermarks, and page numbers.
+
+  ```python
+  custom_prompt = """
+  Convert this document to markdown.
+  Focus on extracting only tables and numerical data.
+  Return only markdown with no explanations.
+  """
+  
+  result = await zerox(
+      file_path="document.pdf",
+      custom_system_prompt=custom_prompt
+  )
+  ```
+</ParamField>
+
+## Processing Options
+
+<ParamField path="concurrency" type="int" default="10">
+  The number of pages to process concurrently. Higher values speed up processing but increase memory and API usage.
+  
+  Set to `1` for sequential processing (useful when combined with `maintain_format`).
+
+  ```python
+  result = await zerox(
+      file_path="large-document.pdf",
+      concurrency=5  # Process 5 pages at a time
+  )
+  ```
+</ParamField>
+
+<ParamField path="maintain_format" type="bool" default="False">
+  Whether to maintain consistent formatting across pages by passing the previous page's output as context to the next page.
+  
+  **When enabled:**
+  - Pages are processed sequentially (slower)
+  - Each page receives the previous page's markdown as context
+  - Useful for documents with tables spanning multiple pages
+  - Helps maintain consistent table formatting
+
+  **Process flow:**
+  ```
+  Request #1 => page_1_image
+  Request #2 => page_1_markdown + page_2_image
+  Request #3 => page_2_markdown + page_3_image
+  ```
+
+  ```python
+  result = await zerox(
+      file_path="document.pdf",
+      maintain_format=True  # Better for tabular data
+  )
+  ```
+
+  <Warning>
+  If both `maintain_format` and `select_pages` are set, a warning will be raised as this combination may not produce expected results.
+  </Warning>
+</ParamField>
+
+<ParamField path="select_pages" type="Union[int, Iterable[int]]" default="None">
+  Process only specific pages from the document. Can be:
+  - A single page number (int): `3`
+  - A list of page numbers: `[1, 3, 5]`
+  - Any iterable of page numbers
+  
+  Page numbers are 1-indexed. When `None`, all pages are processed.
+
+  ```python
+  # Process only page 1
+  result = await zerox(
+      file_path="document.pdf",
+      select_pages=1
+  )
+  
+  # Process pages 1, 3, and 5
+  result = await zerox(
+      file_path="document.pdf",
+      select_pages=[1, 3, 5]
+  )
+  ```
+</ParamField>
+
+## Image Conversion Options
+
+<ParamField path="image_density" type="int" default="300">
+  DPI (dots per inch) for converting PDF pages to images. Higher values produce better quality but larger file sizes.
+  
+  **Recommended values:**
+  - `150`: Fast, lower quality
+  - `300`: Good balance (default)
+  - `600`: High quality, slower
+
+  ```python
+  result = await zerox(
+      file_path="document.pdf",
+      image_density=300  # Standard quality
+  )
+  ```
+</ParamField>
+
+<ParamField path="image_height" type="tuple[Optional[int], int]" default="(None, 1056)">
+  Maximum height for converted images as a tuple `(width, height)`. The first element (width) is typically `None` to maintain aspect ratio.
+  
+  Images larger than this height will be scaled down while preserving aspect ratio.
+
+  ```python
+  result = await zerox(
+      file_path="document.pdf",
+      image_height=(None, 2048)  # Larger images for better quality
+  )
+  ```
+</ParamField>
+
+## File Management
+
+<ParamField path="output_dir" type="str" default="None">
+  Directory to save the aggregated markdown output as a `.md` file. 
+  
+  When set:
+  - The directory will be created if it doesn't exist
+  - Output file will be named `{file_name}.md`
+  - File name is sanitized (special characters replaced with underscores)
+  
+  When `None`, no file is written (markdown is only returned in the response).
+
+  ```python
+  result = await zerox(
+      file_path="document.pdf",
+      output_dir="./output"  # Saves to ./output/document.md
+  )
+  ```
+</ParamField>
+
+<ParamField path="temp_dir" type="str" default="None">
+  Directory for storing temporary files during processing (downloaded PDFs, converted images, etc.).
+  
+  **Behavior:**
+  - When `None`: Uses system temp directory (automatically cleaned up)
+  - When set: Uses specified directory
+    - If directory exists, contents are deleted before use
+    - If `cleanup=True`, directory is deleted after processing
+    - If `cleanup=False`, files remain for inspection
+
+  ```python
+  result = await zerox(
+      file_path="document.pdf",
+      temp_dir="./temp",
+      cleanup=False  # Keep temp files for debugging
+  )
+  ```
+</ParamField>
+
+<ParamField path="cleanup" type="bool" default="True">
+  Whether to delete temporary files after processing completes.
+  
+  Set to `False` to keep temporary files for debugging or inspection.
+
+  ```python
+  result = await zerox(
+      file_path="document.pdf",
+      cleanup=False  # Keep temporary images
+  )
+  ```
+</ParamField>
+
+## Additional LiteLLM Parameters
+
+<ParamField path="**kwargs" type="dict">
+  Additional keyword arguments passed directly to the `litellm.completion()` method.
+  
+  Commonly used parameters:
+  - `temperature`: Controls randomness (0.0 to 1.0)
+  - `max_tokens`: Maximum tokens in response
+  - `top_p`: Nucleus sampling parameter
+  - `frequency_penalty`: Penalize frequent tokens
+  - `presence_penalty`: Penalize present tokens
+  - Provider-specific credentials (e.g., `vertex_credentials`)
+
+  Refer to:
+  - [LiteLLM Providers](https://docs.litellm.ai/docs/providers) for provider setup
+  - [LiteLLM Completion Input](https://docs.litellm.ai/docs/completion/input) for all parameters
+
+  ```python
+  result = await zerox(
+      file_path="document.pdf",
+      model="gpt-4o-mini",
+      temperature=0.1,        # More deterministic
+      max_tokens=4096,        # Limit response length
+      top_p=0.95             # Nucleus sampling
+  )
+  ```
+
+  **Vertex AI Example:**
+  ```python
+  import json
+  
+  with open('service_account.json', 'r') as file:
+      vertex_credentials = json.load(file)
+  
+  result = await zerox(
+      file_path="document.pdf",
+      model="vertex_ai/gemini-1.5-flash-001",
+      vertex_credentials=json.dumps(vertex_credentials)
+  )
+  ```
+</ParamField>
+
+## Parameter Comparison: Python vs Node.js
+
+<Note>
+Key differences between Python and Node.js SDKs:
+</Note>
+
+| Feature | Python Parameter | Node.js Parameter | Notes |
+|---------|------------------|-------------------|-------|
+| Custom prompts | `custom_system_prompt` | Not available | Python only |
+| Page selection | `select_pages` | `pagesToConvertAsImages` | Different naming |
+| Format maintenance | `maintain_format` | `maintainFormat` | Snake case vs camel case |
+| Temp directory | `temp_dir` | `tempDir` | Snake case vs camel case |
+| Data extraction | Not available | `schema`, `extractPerPage` | Node.js only |
+| Error handling | Not available | `errorMode` | Node.js only |
+| Orientation fix | Not available | `correctOrientation` | Node.js only |
+| Edge trimming | Not available | `trimEdges` | Node.js only |
+
+## Complete Example
+
+```python
+import asyncio
+import os
+from pyzerox import zerox
+
+os.environ["OPENAI_API_KEY"] = "your-api-key"
+
+async def main():
+    result = await zerox(
+        # Required
+        file_path="https://example.com/document.pdf",
+        
+        # Model configuration
+        model="gpt-4o-mini",
+        custom_system_prompt=None,
+        
+        # Processing options
+        concurrency=10,
+        maintain_format=False,
+        select_pages=None,
+        
+        # Image conversion
+        image_density=300,
+        image_height=(None, 1056),
+        
+        # File management
+        output_dir="./output",
+        temp_dir=None,
+        cleanup=True,
+        
+        # Additional LiteLLM parameters
+        temperature=0.1,
+        max_tokens=4096
+    )
+    
+    print(f"Processed {len(result.pages)} pages")
+    print(f"Total tokens: {result.input_tokens + result.output_tokens}")
+    return result
+
+result = asyncio.run(main())
+```

@@ -1,0 +1,281 @@
+---
+title: 'AWS Bedrock'
+description: 'Configure Zerox with AWS Bedrock Claude models for document OCR'
+---
+
+## Overview
+
+AWS Bedrock provides access to Anthropic's Claude models through Amazon Web Services. Zerox supports all Claude 3 model variants available on Bedrock for document processing.
+
+## Credentials
+
+Bedrock requires AWS credentials and a region:
+
+<ParamField path="credentials.region" type="string" required>
+  AWS region where Bedrock is available (e.g., `us-east-1`, `us-west-2`). Check [AWS documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html) for regions with Bedrock access.
+</ParamField>
+
+<ParamField path="credentials.accessKeyId" type="string">
+  AWS access key ID. Optional if using IAM roles or environment credentials.
+</ParamField>
+
+<ParamField path="credentials.secretAccessKey" type="string">
+  AWS secret access key. Required if `accessKeyId` is provided.
+</ParamField>
+
+<ParamField path="credentials.sessionToken" type="string">
+  AWS session token for temporary credentials. Optional, used with STS.
+</ParamField>
+
+### Environment Variables
+
+```bash
+export AWS_ACCESS_KEY_ID="your-access-key-id"
+export AWS_SECRET_ACCESS_KEY="your-secret-access-key"
+export AWS_REGION="us-east-1"
+```
+
+<Note>
+If you don't provide explicit credentials, Zerox will use the AWS SDK's default credential chain, which includes environment variables, IAM roles, and AWS credential files.
+</Note>
+
+## Supported Models
+
+Bedrock supports the following Claude 3 models:
+
+| Model | Model ID | Description |
+|-------|----------|-------------|
+| Claude 3.5 Haiku (Oct 2024) | `anthropic.claude-3-5-haiku-20241022-v1:0` | Fastest Claude 3.5 model |
+| Claude 3.5 Sonnet (Oct 2024) | `anthropic.claude-3-5-sonnet-20241022-v2:0` | Latest Sonnet with enhanced capabilities |
+| Claude 3.5 Sonnet (Jun 2024) | `anthropic.claude-3-5-sonnet-20240620-v1:0` | Previous Sonnet version |
+| Claude 3 Haiku (Mar 2024) | `anthropic.claude-3-haiku-20240307-v1:0` | Fast and cost-effective |
+| Claude 3 Opus (Feb 2024) | `anthropic.claude-3-opus-20240229-v1:0` | Most capable Claude 3 model |
+| Claude 3 Sonnet (Feb 2024) | `anthropic.claude-3-sonnet-20240229-v1:0` | Balanced performance |
+
+## Configuration
+
+### Basic Example
+
+```typescript
+import { zerox } from "zerox";
+import { ModelOptions, ModelProvider } from "zerox/node-zerox/dist/types";
+
+const result = await zerox({
+  filePath: "path/to/document.pdf",
+  modelProvider: ModelProvider.BEDROCK,
+  model: ModelOptions.BEDROCK_CLAUDE_3_SONNET_2024_10,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    region: process.env.AWS_REGION,
+  },
+});
+```
+
+### With IAM Role (Recommended for EC2/ECS)
+
+```typescript
+import { zerox } from "zerox";
+import { ModelOptions, ModelProvider } from "zerox/node-zerox/dist/types";
+
+const result = await zerox({
+  filePath: "path/to/document.pdf",
+  modelProvider: ModelProvider.BEDROCK,
+  model: ModelOptions.BEDROCK_CLAUDE_3_SONNET_2024_10,
+  credentials: {
+    region: "us-east-1", // Only region required when using IAM role
+  },
+});
+```
+
+### With Temporary Credentials (STS)
+
+```typescript
+import { zerox } from "zerox";
+import { ModelOptions, ModelProvider } from "zerox/node-zerox/dist/types";
+
+const result = await zerox({
+  filePath: "path/to/document.pdf",
+  modelProvider: ModelProvider.BEDROCK,
+  model: ModelOptions.BEDROCK_CLAUDE_3_HAIKU_2024_10,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    sessionToken: process.env.AWS_SESSION_TOKEN,
+    region: "us-west-2",
+  },
+});
+```
+
+## LLM Parameters
+
+Bedrock Claude models support the following optional parameters:
+
+<ParamField path="llmParams.temperature" type="number" default="1">
+  Controls randomness in the output. Values range from 0 to 1. Lower values make output more focused and deterministic.
+</ParamField>
+
+<ParamField path="llmParams.maxTokens" type="number" default="4096">
+  Maximum number of tokens to generate in the completion. Claude models support up to 8192 output tokens.
+</ParamField>
+
+<ParamField path="llmParams.topP" type="number" default="1">
+  Nucleus sampling parameter. Values range from 0 to 1. Only `temperature` or `topP` should be altered, not both.
+</ParamField>
+
+<ParamField path="llmParams.frequencyPenalty" type="number" default="0">
+  Not supported by Claude models on Bedrock. This parameter is ignored.
+</ParamField>
+
+<ParamField path="llmParams.presencePenalty" type="number" default="0">
+  Not supported by Claude models on Bedrock. This parameter is ignored.
+</ParamField>
+
+### Example with Parameters
+
+```typescript
+import { zerox } from "zerox";
+import { ModelOptions, ModelProvider } from "zerox/node-zerox/dist/types";
+
+const result = await zerox({
+  filePath: "path/to/document.pdf",
+  modelProvider: ModelProvider.BEDROCK,
+  model: ModelOptions.BEDROCK_CLAUDE_3_SONNET_2024_10,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    region: "us-east-1",
+  },
+  llmParams: {
+    temperature: 0.3,
+    maxTokens: 8192,
+    topP: 0.9,
+  },
+});
+```
+
+## Data Extraction
+
+Bedrock Claude models support structured data extraction using tool calling:
+
+```typescript
+import { zerox } from "zerox";
+import { ModelOptions, ModelProvider } from "zerox/node-zerox/dist/types";
+
+const schema = {
+  type: "object",
+  properties: {
+    patient_name: { type: "string" },
+    date_of_birth: { type: "string" },
+    diagnosis: { type: "string" },
+    medications: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          dosage: { type: "string" },
+          frequency: { type: "string" },
+        },
+      },
+    },
+  },
+};
+
+const result = await zerox({
+  filePath: "medical-record.pdf",
+  modelProvider: ModelProvider.BEDROCK,
+  model: ModelOptions.BEDROCK_CLAUDE_3_SONNET_2024_10,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    region: "us-east-1",
+  },
+  extractOnly: true,
+  schema: schema,
+});
+
+console.log(result.extracted);
+```
+
+<Info>
+Bedrock uses Claude's tool calling feature for structured extraction. The schema is automatically converted to the appropriate tool format.
+</Info>
+
+## Model Access
+
+<Warning>
+Before using Bedrock models, you must request model access in the AWS Console:
+
+1. Navigate to AWS Bedrock in your desired region
+2. Go to "Model access" in the sidebar
+3. Request access to Anthropic Claude models
+4. Wait for approval (usually instant for Claude models)
+
+Without model access, API calls will fail with access denied errors.
+</Warning>
+
+## Error Handling
+
+```typescript
+import { zerox } from "zerox";
+import { ErrorMode, ModelProvider, ModelOptions } from "zerox/node-zerox/dist/types";
+
+try {
+  const result = await zerox({
+    filePath: "document.pdf",
+    modelProvider: ModelProvider.BEDROCK,
+    model: ModelOptions.BEDROCK_CLAUDE_3_SONNET_2024_10,
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      region: "us-east-1",
+    },
+    errorMode: ErrorMode.THROW,
+  });
+} catch (error) {
+  console.error("OCR failed:", error);
+}
+```
+
+## Regional Availability
+
+Bedrock with Claude models is available in select AWS regions:
+
+- `us-east-1` (N. Virginia)
+- `us-west-2` (Oregon)
+- `ap-southeast-1` (Singapore)
+- `ap-northeast-1` (Tokyo)
+- `eu-central-1` (Frankfurt)
+- `eu-west-2` (London)
+
+Check the [AWS Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/models-regions.html) for the latest regional availability.
+
+## IAM Permissions
+
+Your AWS credentials need the following permissions:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel"
+      ],
+      "Resource": "arn:aws:bedrock:*::foundation-model/anthropic.claude-*"
+    }
+  ]
+}
+```
+
+## Best Practices
+
+- Use IAM roles instead of access keys when running on AWS infrastructure (EC2, ECS, Lambda)
+- Choose `claude-3-haiku` for cost-effective processing of simple documents
+- Use `claude-3-5-sonnet` for complex layouts, multi-page documents, and detailed extraction
+- Set `temperature: 0` for deterministic output in production
+- Monitor costs through AWS Cost Explorer - vision models charge per input/output token
+- Enable AWS CloudTrail logging for audit trails
+- Use AWS Secrets Manager to store credentials securely

@@ -1,0 +1,501 @@
+---
+title: 'Custom Prompts and Instructions'
+description: 'Customize OCR and extraction behavior with custom prompts'
+---
+
+## Overview
+
+Zerox allows you to customize the OCR and extraction process with custom prompts. This gives you fine-grained control over how documents are processed and what format the output takes.
+
+## Use Case
+
+Perfect for:
+- Domain-specific document processing (medical, legal, technical)
+- Custom output formatting requirements
+- Specialized data extraction needs
+- Multi-language documents
+- Documents with unique structures or conventions
+
+## Basic Custom Prompts
+
+<CodeGroup>
+
+```typescript Node.js
+import { zerox } from "zerox";
+
+// Custom prompt for OCR processing
+const result = await zerox({
+  filePath: "technical-manual.pdf",
+  credentials: {
+    apiKey: process.env.OPENAI_API_KEY || "",
+  },
+  prompt: `
+    Convert this technical manual to markdown with these specific rules:
+    - Preserve all technical terminology exactly as written
+    - Format code blocks with appropriate language tags
+    - Convert diagrams to detailed text descriptions
+    - Mark warnings and cautions with appropriate markdown callouts
+    - Preserve all figure and table numbers
+  `,
+});
+
+console.log(result.pages[0].content);
+```
+
+```python Python
+import asyncio
+import os
+from pyzerox import zerox
+
+async def process_with_custom_prompt():
+    os.environ["OPENAI_API_KEY"] = "your-api-key"
+    
+    # Custom system prompt for OCR processing
+    custom_prompt = """
+    Convert this technical manual to markdown with these specific rules:
+    - Preserve all technical terminology exactly as written
+    - Format code blocks with appropriate language tags
+    - Convert diagrams to detailed text descriptions
+    - Mark warnings and cautions with appropriate markdown callouts
+    - Preserve all figure and table numbers
+    """
+    
+    result = await zerox(
+        file_path="technical-manual.pdf",
+        model="gpt-4o",
+        custom_system_prompt=custom_prompt,
+    )
+    
+    print(result.pages[0].content)
+
+result = asyncio.run(process_with_custom_prompt())
+```
+
+</CodeGroup>
+
+## Default System Prompt
+
+Zerox uses this default prompt for OCR. You can override it with your custom prompt:
+
+```text
+Convert the following document to markdown.
+Return only the markdown with no explanation text. Do not include delimiters like ```markdown or ```html.
+
+RULES:
+  - You must include all information on the page. Do not exclude headers, footers, or subtext.
+  - Return tables in an HTML format.
+  - Charts & infographics must be interpreted to a markdown format. Prefer table format when applicable.
+  - Logos should be wrapped in brackets. Ex: <logo>Coca-Cola<logo>
+  - Watermarks should be wrapped in brackets. Ex: <watermark>OFFICIAL COPY<watermark>
+  - Page numbers should be wrapped in brackets. Ex: <page_number>14<page_number> or <page_number>9/22<page_number>
+  - Prefer using ☐ and ☑ for check boxes.
+```
+
+## Extraction Prompts
+
+Customize data extraction with the `extractionPrompt` parameter:
+
+<CodeGroup>
+
+```typescript Node.js
+import { zerox } from "zerox";
+
+const schema = {
+  type: "object",
+  properties: {
+    company_name: { type: "string" },
+    financial_year: { type: "string" },
+    revenue: { type: "number" },
+    expenses: { type: "number" },
+    profit: { type: "number" },
+  },
+};
+
+const result = await zerox({
+  filePath: "financial-report.pdf",
+  credentials: { apiKey: process.env.OPENAI_API_KEY || "" },
+  schema,
+  extractOnly: true,
+  extractionPrompt: `
+    Extract financial data with these specific instructions:
+    - Convert all monetary values to USD (use exchange rates from the document)
+    - Use the fiscal year from the report header
+    - Round all numbers to 2 decimal places
+    - Extract consolidated figures, not individual segment data
+    - If multiple currencies are present, prioritize USD
+  `,
+});
+
+console.log("Extracted data:", result.extracted);
+```
+
+```python Python
+# Note: Python SDK doesn't support extractionPrompt parameter yet
+# Use custom_system_prompt to guide the overall processing instead
+
+import asyncio
+import os
+from pyzerox import zerox
+
+async def extract_with_custom_prompt():
+    os.environ["OPENAI_API_KEY"] = "your-api-key"
+    
+    custom_prompt = """
+    Extract financial data with these specific instructions:
+    - Convert all monetary values to USD
+    - Use the fiscal year from the report header
+    - Round all numbers to 2 decimal places
+    - Extract consolidated figures, not individual segment data
+    
+    Format output as structured markdown with clear sections:
+    - Company Name
+    - Financial Year
+    - Revenue
+    - Expenses
+    - Profit
+    """
+    
+    result = await zerox(
+        file_path="financial-report.pdf",
+        model="gpt-4o",
+        custom_system_prompt=custom_prompt,
+    )
+    
+    return result
+
+result = asyncio.run(extract_with_custom_prompt())
+```
+
+</CodeGroup>
+
+## Domain-Specific Examples
+
+### Medical Documents
+
+```typescript
+const medicalPrompt = `
+Convert this medical document to markdown following these rules:
+- Preserve all medical terminology and drug names exactly
+- Convert prescription information to a structured format
+- Highlight allergies and contraindications with WARNING: prefix
+- Format dosage information in tables when possible
+- Maintain patient confidentiality markers (redact PHI if indicated)
+- Convert medical abbreviations to full terms in parentheses
+`;
+
+const result = await zerox({
+  filePath: "patient-record.pdf",
+  credentials: { apiKey: process.env.OPENAI_API_KEY || "" },
+  prompt: medicalPrompt,
+});
+```
+
+### Legal Documents
+
+```typescript
+const legalPrompt = `
+Convert this legal document to markdown with these requirements:
+- Preserve section numbering exactly (e.g., §1.1.1)
+- Maintain all defined terms in capitalized format
+- Convert signature blocks to a structured format
+- Preserve indentation for nested clauses
+- Mark exhibits and schedules with clear section breaks
+- Include document metadata (date, parties, etc.) at the top
+- Preserve all citations and cross-references
+`;
+
+const result = await zerox({
+  filePath: "contract.pdf",
+  credentials: { apiKey: process.env.OPENAI_API_KEY || "" },
+  prompt: legalPrompt,
+  model: "gpt-4o", // Use more capable model for complex legal language
+});
+```
+
+### Academic Papers
+
+```typescript
+const academicPrompt = `
+Convert this academic paper to markdown following these conventions:
+- Preserve all citations in [Author, Year] format
+- Convert mathematical equations to LaTeX format wrapped in $ or $$
+- Format references section as a numbered list
+- Preserve figure and table captions with numbering
+- Convert abstract into a separate section
+- Maintain heading hierarchy (# for title, ## for sections, etc.)
+- Include all footnotes as markdown footnotes [^1]
+`;
+
+const result = await zerox({
+  filePath: "research-paper.pdf",
+  credentials: { apiKey: process.env.OPENAI_API_KEY || "" },
+  prompt: academicPrompt,
+});
+```
+
+### Multi-Language Documents
+
+```typescript
+const multilingualPrompt = `
+Convert this document to markdown with these language-specific rules:
+- Preserve the original language for all text
+- Do not translate any content
+- Maintain proper character encoding for non-Latin scripts
+- Preserve right-to-left text direction markers if present
+- Keep language-specific formatting (e.g., date formats, number separators)
+`;
+
+const result = await zerox({
+  filePath: "multilingual-doc.pdf",
+  credentials: { apiKey: process.env.OPENAI_API_KEY || "" },
+  prompt: multilingualPrompt,
+});
+```
+
+## Combining OCR and Extraction Prompts
+
+You can use both `prompt` (for OCR) and `extractionPrompt` (for data extraction):
+
+```typescript
+import { zerox } from "zerox";
+
+const schema = {
+  type: "object",
+  properties: {
+    policy_number: { type: "string" },
+    coverage_amount: { type: "number" },
+    premium: { type: "number" },
+  },
+};
+
+const result = await zerox({
+  filePath: "insurance-policy.pdf",
+  credentials: { apiKey: process.env.OPENAI_API_KEY || "" },
+  // OCR prompt
+  prompt: `
+    Convert this insurance document to markdown.
+    Preserve all policy terms and conditions.
+    Format coverage tables clearly.
+  `,
+  // Extraction prompt
+  schema,
+  extractionPrompt: `
+    Extract policy information:
+    - Policy number should include all letters and numbers
+    - Coverage amount in USD
+    - Annual premium amount
+  `,
+});
+
+console.log("Markdown:", result.pages[0].content);
+console.log("Extracted:", result.extracted);
+```
+
+## Structured Output Formatting
+
+```typescript
+const structuredPrompt = `
+Convert this document to markdown with a consistent structure:
+
+1. METADATA SECTION:
+   - Document Title
+   - Date
+   - Author/Source
+   - Document Type
+
+2. EXECUTIVE SUMMARY:
+   - Key points as bullet list
+   - Maximum 5 bullets
+
+3. MAIN CONTENT:
+   - Use ## for main sections
+   - Use ### for subsections
+   - Tables in HTML format
+   - Figures with descriptive captions
+
+4. APPENDICES:
+   - Technical details
+   - Supporting data
+
+Follow this structure exactly for every page.
+`;
+
+const result = await zerox({
+  filePath: "business-report.pdf",
+  credentials: { apiKey: process.env.OPENAI_API_KEY || "" },
+  prompt: structuredPrompt,
+});
+```
+
+## Prompt Engineering Tips
+
+<Tip>
+**Be Specific**: Provide clear, specific instructions. Vague prompts lead to inconsistent results.
+</Tip>
+
+<Tip>
+**Use Examples**: Include examples in your prompt of how you want content formatted.
+</Tip>
+
+<Tip>
+**Prioritize Rules**: List the most important rules first in your prompt.
+</Tip>
+
+<Tip>
+**Test Iteratively**: Start with a simple prompt and refine based on actual outputs.
+</Tip>
+
+<Tip>
+**Consider Token Limits**: Very long prompts consume tokens that could be used for document content. Keep prompts concise.
+</Tip>
+
+<Warning>
+**Model Capabilities**: Different models may interpret prompts differently. Test your custom prompts with your chosen model (`gpt-4o`, `gpt-4o-mini`, etc.).
+</Warning>
+
+## Conditional Formatting
+
+```typescript
+const conditionalPrompt = `
+Convert this document to markdown with conditional formatting:
+
+IF the page contains a table:
+  - Convert to HTML table format
+  - Include table caption if present
+  - Align numeric columns to the right
+
+IF the page contains a chart or graph:
+  - Provide a detailed text description
+  - Extract key data points into a table
+  - Note the chart type (bar, line, pie, etc.)
+
+IF the page contains code:
+  - Use fenced code blocks
+  - Detect and specify language
+  - Preserve all indentation
+
+IF the page contains mathematical notation:
+  - Convert to LaTeX format
+  - Wrap inline math in $...$
+  - Wrap display math in $$...$$
+`;
+
+const result = await zerox({
+  filePath: "mixed-content.pdf",
+  credentials: { apiKey: process.env.OPENAI_API_KEY || "" },
+  prompt: conditionalPrompt,
+});
+```
+
+## Quality Control Prompts
+
+```typescript
+const qualityControlPrompt = `
+Convert this document to markdown with quality checks:
+
+1. Verify all numbers are accurately transcribed
+2. Ensure dates are in ISO 8601 format (YYYY-MM-DD)
+3. Check that no content is omitted (headers, footers, sidebars)
+4. Validate that table data is aligned correctly
+5. Confirm all hyperlinks are preserved
+6. Ensure consistent heading levels throughout
+
+If you are uncertain about any content, mark it with [VERIFY: <description>].
+`;
+
+const result = await zerox({
+  filePath: "important-document.pdf",
+  credentials: { apiKey: process.env.OPENAI_API_KEY || "" },
+  prompt: qualityControlPrompt,
+  model: "gpt-4o", // Use better model for quality-critical documents
+});
+```
+
+## Language and Locale Considerations
+
+```typescript
+const localePrompt = `
+Convert this document with locale-specific formatting:
+
+- Dates: Use DD/MM/YYYY format (European standard)
+- Numbers: Use comma as decimal separator (e.g., 1.234,56)
+- Currency: Convert all amounts to EUR with € symbol
+- Measurements: Convert to metric units
+- Time: Use 24-hour format
+
+Preserve the original values in [brackets] if conversion is applied.
+`;
+
+const result = await zerox({
+  filePath: "international-report.pdf",
+  credentials: { apiKey: process.env.OPENAI_API_KEY || "" },
+  prompt: localePrompt,
+});
+```
+
+## Performance vs Quality Trade-offs
+
+```typescript
+// Fast processing (lower cost, good quality)
+const fastResult = await zerox({
+  filePath: "document.pdf",
+  credentials: { apiKey: process.env.OPENAI_API_KEY || "" },
+  model: "gpt-4o-mini",
+  prompt: "Convert to markdown, prioritize speed over perfection.",
+});
+
+// High quality processing (higher cost, best accuracy)
+const qualityResult = await zerox({
+  filePath: "document.pdf",
+  credentials: { apiKey: process.env.OPENAI_API_KEY || "" },
+  model: "gpt-4o",
+  prompt: `
+    Convert to markdown with maximum accuracy:
+    - Double-check all numerical data
+    - Preserve exact formatting and structure
+    - Maintain all semantic relationships
+    - Include all metadata and annotations
+  `,
+  maxRetries: 3, // Retry on errors
+});
+```
+
+## Python-Specific: Custom System Prompts
+
+```python
+import asyncio
+import os
+from pyzerox import zerox
+
+async def process_with_custom_system_prompt():
+    os.environ["OPENAI_API_KEY"] = "your-api-key"
+    
+    # Override the default Zerox system prompt
+    custom_system_prompt = """
+    You are a specialized OCR system for technical documentation.
+    
+    Convert the PDF page to markdown following these rules:
+    1. Preserve all code snippets with correct language tags
+    2. Convert diagrams to Mermaid syntax when possible
+    3. Format API endpoints as code blocks
+    4. Include all metadata (version, date, author) at the top
+    5. Use callout blocks for notes and warnings
+    
+    Return only the markdown, no explanations.
+    """
+    
+    result = await zerox(
+        file_path="api-documentation.pdf",
+        model="gpt-4o",
+        custom_system_prompt=custom_system_prompt,
+    )
+    
+    return result
+
+result = asyncio.run(process_with_custom_system_prompt())
+print(result.pages[0].content)
+```
+
+<Warning>
+**Python Warning**: When using `custom_system_prompt` in Python, the Zerox SDK will display a friendly warning that you're overriding the default behavior. This is expected and indicates your custom prompt is being used.
+</Warning>

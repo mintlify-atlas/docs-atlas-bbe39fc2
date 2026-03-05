@@ -1,0 +1,194 @@
+---
+title: 'OpenAI'
+description: 'Configure Zerox with OpenAI models for document OCR'
+---
+
+## Overview
+
+OpenAI provides vision-capable models that can process documents and images. Zerox supports all OpenAI GPT-4 vision models for OCR and data extraction tasks.
+
+## Credentials
+
+To use OpenAI models, you need to provide your API key:
+
+<ParamField path="credentials.apiKey" type="string" required>
+  Your OpenAI API key. Can be obtained from the [OpenAI API dashboard](https://platform.openai.com/api-keys).
+</ParamField>
+
+### Environment Variable
+
+You can store your API key as an environment variable:
+
+```bash
+export OPENAI_API_KEY="sk-..."
+```
+
+## Supported Models
+
+The following OpenAI models are available through Zerox:
+
+| Model | Model ID | Description |
+|-------|----------|-------------|
+| GPT-4.1 | `gpt-4.1` | Latest GPT-4.1 model with vision capabilities |
+| GPT-4.1 Mini | `gpt-4.1-mini` | Smaller, faster GPT-4.1 model |
+| GPT-4o | `gpt-4o` | Optimized GPT-4 model with vision |
+| GPT-4o Mini | `gpt-4o-mini` | Smaller, cost-effective GPT-4o model |
+
+## Configuration
+
+### Basic Example
+
+```typescript
+import { zerox } from "zerox";
+import { ModelOptions, ModelProvider } from "zerox/node-zerox/dist/types";
+
+const result = await zerox({
+  filePath: "path/to/document.pdf",
+  modelProvider: ModelProvider.OPENAI,
+  model: ModelOptions.OPENAI_GPT_4O,
+  credentials: {
+    apiKey: process.env.OPENAI_API_KEY,
+  },
+});
+```
+
+### With Environment Variable
+
+```typescript
+import { zerox } from "zerox";
+
+const result = await zerox({
+  filePath: "path/to/document.pdf",
+  credentials: {
+    apiKey: process.env.OPENAI_API_KEY,
+  },
+});
+```
+
+<Note>
+When using environment variables, you can omit the `modelProvider` parameter. OpenAI is the default provider.
+</Note>
+
+## LLM Parameters
+
+OpenAI models support the following optional parameters:
+
+<ParamField path="llmParams.temperature" type="number" default="1">
+  Controls randomness in the output. Values range from 0 to 2. Lower values make output more focused and deterministic.
+</ParamField>
+
+<ParamField path="llmParams.maxTokens" type="number" default="4096">
+  Maximum number of tokens to generate in the completion.
+</ParamField>
+
+<ParamField path="llmParams.topP" type="number" default="1">
+  Nucleus sampling parameter. An alternative to temperature sampling. Values range from 0 to 1.
+</ParamField>
+
+<ParamField path="llmParams.frequencyPenalty" type="number" default="0">
+  Number between -2.0 and 2.0. Positive values penalize tokens based on their frequency in the text so far.
+</ParamField>
+
+<ParamField path="llmParams.presencePenalty" type="number" default="0">
+  Number between -2.0 and 2.0. Positive values penalize tokens based on whether they appear in the text so far.
+</ParamField>
+
+<ParamField path="llmParams.logprobs" type="boolean" default="false">
+  Whether to return log probabilities of the output tokens. Useful for confidence scoring.
+</ParamField>
+
+### Example with Parameters
+
+```typescript
+import { zerox } from "zerox";
+import { ModelOptions, ModelProvider } from "zerox/node-zerox/dist/types";
+
+const result = await zerox({
+  filePath: "path/to/document.pdf",
+  modelProvider: ModelProvider.OPENAI,
+  model: ModelOptions.OPENAI_GPT_4O_MINI,
+  credentials: {
+    apiKey: process.env.OPENAI_API_KEY,
+  },
+  llmParams: {
+    temperature: 0.3,
+    maxTokens: 4096,
+    topP: 0.9,
+    logprobs: true,
+  },
+});
+```
+
+## Data Extraction
+
+OpenAI models support structured data extraction using JSON schemas:
+
+```typescript
+import { zerox } from "zerox";
+import { ModelOptions, ModelProvider } from "zerox/node-zerox/dist/types";
+
+const schema = {
+  type: "object",
+  properties: {
+    invoice_number: { type: "string" },
+    date: { type: "string" },
+    total: { type: "number" },
+    items: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          description: { type: "string" },
+          quantity: { type: "number" },
+          price: { type: "number" },
+        },
+      },
+    },
+  },
+};
+
+const result = await zerox({
+  filePath: "invoice.pdf",
+  modelProvider: ModelProvider.OPENAI,
+  model: ModelOptions.OPENAI_GPT_4O,
+  credentials: {
+    apiKey: process.env.OPENAI_API_KEY,
+  },
+  extractOnly: true,
+  schema: schema,
+});
+
+console.log(result.extracted);
+```
+
+## Error Handling
+
+```typescript
+import { zerox } from "zerox";
+import { ErrorMode, ModelProvider } from "zerox/node-zerox/dist/types";
+
+try {
+  const result = await zerox({
+    filePath: "document.pdf",
+    modelProvider: ModelProvider.OPENAI,
+    credentials: {
+      apiKey: process.env.OPENAI_API_KEY,
+    },
+    errorMode: ErrorMode.THROW,
+  });
+} catch (error) {
+  console.error("OCR failed:", error);
+}
+```
+
+<Warning>
+Ensure your OpenAI API key has sufficient credits and appropriate permissions for vision API access. Vision models consume tokens based on image resolution and document complexity.
+</Warning>
+
+## Best Practices
+
+- Use `gpt-4o-mini` for cost-effective processing of simple documents
+- Use `gpt-4o` or `gpt-4.1` for complex layouts, tables, and detailed extraction
+- Set `temperature: 0` for deterministic output when consistency is critical
+- Enable `logprobs: true` to access confidence scores for extraction quality assessment
+- Monitor token usage through the returned `inputTokens` and `outputTokens` fields

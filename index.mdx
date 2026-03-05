@@ -1,97 +1,171 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Zerox - Vision-Powered OCR"
+description: "Convert documents to markdown using GPT-4, Claude, Gemini and other vision models"
 ---
 
-## Setting up
+<div style={{
+  background: 'linear-gradient(135deg, #1f6de4 0%, #8cbce8 100%)',
+  borderRadius: '16px',
+  padding: '48px 32px',
+  textAlign: 'center',
+  marginBottom: '32px',
+  color: '#ffffff'
+}}>
+  <h1 style={{ fontSize: '48px', fontWeight: '700', marginBottom: '16px', color: '#ffffff' }}>
+    Zerox
+  </h1>
+  <p style={{ fontSize: '24px', marginBottom: '32px', color: '#ffffff', opacity: 0.95 }}>
+    Vision-Powered OCR for AI Ingestion
+  </p>
+  <p style={{ fontSize: '18px', maxWidth: '700px', margin: '0 auto 32px', color: '#ffffff', opacity: 0.9 }}>
+    Convert PDFs, documents, and images to clean markdown using GPT-4o, Claude, Gemini and other vision models. Documents are visual after all — let vision models make sense of complex layouts, tables, and charts.
+  </p>
+  <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
+    <a href="/quickstart" style={{
+      background: '#ffffff',
+      color: '#1f6de4',
+      padding: '12px 32px',
+      borderRadius: '16px',
+      fontWeight: '600',
+      textDecoration: 'none',
+      display: 'inline-block'
+    }}>
+      Get Started
+    </a>
+    <a href="https://github.com/getomni-ai/zerox" style={{
+      background: 'rgba(255, 255, 255, 0.2)',
+      color: '#ffffff',
+      padding: '12px 32px',
+      borderRadius: '16px',
+      fontWeight: '600',
+      textDecoration: 'none',
+      display: 'inline-block'
+    }}>
+      View on GitHub
+    </a>
+  </div>
+</div>
 
-Get your documentation site up and running in minutes.
+## How It Works
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+Zerox makes document OCR dead simple by leveraging vision models:
 
-## Make it yours
+<Steps>
+  <Step title="Pass in a file">
+    Upload a PDF, DOCX, image, or any of 20+ supported formats
+  </Step>
+  <Step title="Convert to images">
+    Files are converted into a series of high-quality images
+  </Step>
+  <Step title="Vision model processing">
+    Each image is sent to GPT-4o, Claude, or Gemini for markdown conversion
+  </Step>
+  <Step title="Get markdown output">
+    Receive clean, structured markdown perfect for AI ingestion and RAG systems
+  </Step>
+</Steps>
 
-Design a docs site that looks great and empowers your users.
+## Key Features
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Multi-Provider Support" icon="cloud">
+    Works with OpenAI, Azure OpenAI, AWS Bedrock, and Google Gemini
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="20+ File Formats" icon="file">
+    Supports PDF, DOCX, XLSX, images, and more out of the box
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Structured Data Extraction" icon="brackets-curly">
+    Extract specific fields using JSON schemas for forms, invoices, and tables
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Dual SDKs" icon="code">
+    Available for both Node.js and Python with async APIs
   </Card>
-</Columns>
+  <Card title="Smart Processing" icon="sparkles">
+    Auto-corrects orientation, trims edges, and handles concurrent pages
+  </Card>
+  <Card title="Format Preservation" icon="table">
+    Maintain consistent formatting across pages with tabular data
+  </Card>
+</CardGroup>
 
-## Create beautiful pages
+## Quick Example
 
-Everything you need to create world-class documentation.
+<CodeGroup>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+```typescript Node.js
+import { zerox } from "zerox";
 
-## Need inspiration?
+const result = await zerox({
+  filePath: "https://example.com/document.pdf",
+  credentials: {
+    apiKey: process.env.OPENAI_API_KEY,
+  },
+});
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+console.log(result.pages[0].content); // Markdown output
+```
+
+```python Python
+from pyzerox import zerox
+import asyncio
+
+async def main():
+    result = await zerox(
+        file_path="https://example.com/document.pdf",
+        model="gpt-4o-mini"
+    )
+    print(result.pages[0].content)
+
+asyncio.run(main())
+```
+
+</CodeGroup>
+
+## Trusted by Developers
+
+<div style={{
+  background: '#f0f4ff',
+  border: '1px solid #d0d9ff',
+  borderRadius: '16px',
+  padding: '32px',
+  textAlign: 'center',
+  marginTop: '32px'
+}}>
+  <p style={{ fontSize: '18px', marginBottom: '16px', fontWeight: '600', color: '#1f6de4' }}>
+    12,000+ GitHub Stars
+  </p>
+  <p style={{ fontSize: '14px', color: '#000000', opacity: 0.8 }}>
+    Join thousands of developers using Zerox for document processing in production
+  </p>
+</div>
+
+## Get Started
+
+<CardGroup cols={3}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get up and running in 5 minutes
+  </Card>
+  <Card title="Node.js Setup" icon="node-js" href="/installation/node">
+    Install the Node.js SDK
+  </Card>
+  <Card title="Python Setup" icon="python" href="/installation/python">
+    Install the Python SDK
+  </Card>
+</CardGroup>
+
+## Popular Guides
+
+<CardGroup cols={2}>
+  <Card title="Data Extraction" icon="database" href="/guides/data-extraction">
+    Extract structured data from documents using schemas
+  </Card>
+  <Card title="Model Providers" icon="server" href="/concepts/model-providers">
+    Configure OpenAI, Azure, Bedrock, or Gemini
+  </Card>
+  <Card title="Batch Processing" icon="layer-group" href="/examples/batch-processing">
+    Process multiple documents efficiently
+  </Card>
+  <Card title="Invoice Extraction" icon="receipt" href="/examples/invoice-extraction">
+    Extract data from invoices and forms
+  </Card>
+</CardGroup>

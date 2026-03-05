@@ -1,0 +1,167 @@
+---
+title: Introduction
+description: Vision-powered OCR that converts documents into clean Markdown for AI ingestion
+---
+
+## What is Zerox?
+
+Zerox is a vision-powered OCR SDK that converts documents into clean Markdown format for AI ingestion. Instead of traditional OCR engines, Zerox leverages vision language models (GPT-4 Vision, Claude, Gemini, etc.) to understand document layouts, tables, charts, and complex formatting—making it ideal for AI applications that need structured document data.
+
+<Card title="Try the Demo" icon="flask" href="https://getomni.ai/ocr-demo">
+  Test Zerox with your documents in the hosted demo
+</Card>
+
+## How It Works
+
+Zerox follows a simple four-step process:
+
+<Steps>
+  <Step title="Pass in a file">
+    Provide a PDF, DOCX, image, or other supported document format via file path or URL
+  </Step>
+  
+  <Step title="Convert to images">
+    Zerox converts your document into a series of high-quality images (one per page)
+  </Step>
+  
+  <Step title="Extract with vision models">
+    Each image is sent to your chosen vision model (GPT-4o, Claude, Gemini, etc.) with instructions to extract Markdown
+  </Step>
+  
+  <Step title="Aggregate and return">
+    The Markdown responses are aggregated and returned with metadata (tokens, completion time, etc.)
+  </Step>
+</Steps>
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Multi-Format Support" icon="file">
+    Process PDFs, Word docs, images (PNG, JPEG, HEIC), spreadsheets, presentations, and 20+ document formats
+  </Card>
+  
+  <Card title="Multiple Model Providers" icon="sparkles">
+    Works with OpenAI, Azure OpenAI, AWS Bedrock, Google Gemini, and Vertex AI
+  </Card>
+  
+  <Card title="Structured Data Extraction" icon="table">
+    Extract specific fields using JSON schemas instead of full document conversion
+  </Card>
+  
+  <Card title="Format Preservation" icon="align-left">
+    Maintain consistent formatting across pages—perfect for tables and structured content
+  </Card>
+  
+  <Card title="Smart Image Processing" icon="image">
+    Automatic orientation correction, edge trimming, and image compression
+  </Card>
+  
+  <Card title="Concurrent Processing" icon="gauge-high">
+    Process multiple pages in parallel with configurable concurrency limits
+  </Card>
+</CardGroup>
+
+## When to Use Zerox
+
+<AccordionGroup>
+  <Accordion title="✅ Perfect for AI applications" icon="check">
+    - Converting documents for RAG (Retrieval Augmented Generation) systems
+    - Extracting data from invoices, receipts, and forms
+    - Processing research papers, reports, and technical documents
+    - Building document analysis pipelines
+    - Creating searchable archives from scanned documents
+  </Accordion>
+  
+  <Accordion title="⚠️ Not ideal for" icon="triangle-exclamation">
+    - Real-time OCR on mobile devices (requires API calls to vision models)
+    - Offline-only environments (requires internet for model API access)
+    - Extremely high-volume processing on tight budgets (vision model API costs)
+    - Simple text extraction where traditional OCR is sufficient
+  </Accordion>
+</AccordionGroup>
+
+## Output Format
+
+Zerox returns structured data with per-page content, token usage, and metadata:
+
+```json
+{
+  "completionTime": 10038,
+  "fileName": "invoice_36258",
+  "inputTokens": 25543,
+  "outputTokens": 210,
+  "pages": [
+    {
+      "page": 1,
+      "content": "# INVOICE # 36258\n**Date:** Mar 06 2012...",
+      "contentLength": 747,
+      "status": "SUCCESS"
+    }
+  ],
+  "summary": {
+    "totalPages": 1,
+    "ocr": {
+      "successful": 1,
+      "failed": 0
+    }
+  }
+}
+```
+
+## Available SDKs
+
+Zerox is available as both a Node.js and Python package:
+
+<CodeGroup>
+
+```bash Node.js
+npm install zerox
+```
+
+```bash Python
+pip install py-zerox
+```
+
+</CodeGroup>
+
+## Supported Models
+
+Zerox works with vision models from multiple providers:
+
+| Provider | Models |
+|----------|--------|
+| **OpenAI** | GPT-4o, GPT-4o-mini, GPT-4.1, GPT-4.1-mini |
+| **Azure OpenAI** | GPT-4o, GPT-4o-mini, GPT-4.1, GPT-4.1-mini |
+| **AWS Bedrock** | Claude 3 Opus, Claude 3 Sonnet, Claude 3 Haiku (multiple versions) |
+| **Google Gemini** | Gemini 1.5 (Flash, Flash-8B, Pro), Gemini 2.0 (Flash, Flash-Lite) |
+| **Vertex AI** | Gemini models (Python only) |
+
+<Note>
+All vision models from these providers are supported. Refer to each provider's documentation for the most up-to-date model availability.
+</Note>
+
+## Supported File Types
+
+Zerox supports 20+ document formats including:
+
+- **Documents**: PDF, DOC, DOCX, ODT, RTF, TXT, HTML, XML
+- **Spreadsheets**: XLS, XLSX, ODS, CSV, TSV
+- **Presentations**: PPT, PPTX, ODP
+- **Images**: PNG, JPG, JPEG, HEIC
+- **Other**: WPS, WPD
+
+<Warning>
+For non-image/non-PDF files, Zerox uses LibreOffice to convert to PDF first, then to images. Make sure LibreOffice is installed on your system if you need to process these formats.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get started with Zerox in 5 minutes
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api/node/zerox">
+    Explore all configuration options
+  </Card>
+</CardGroup>

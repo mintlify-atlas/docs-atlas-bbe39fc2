@@ -1,0 +1,409 @@
+---
+title: Data Extraction
+description: Extract structured data from documents using JSON schemas
+---
+
+## Overview
+
+Zerox can extract structured data from documents by providing a JSON schema. This feature uses vision models to directly extract information without first converting to markdown.
+
+## Basic Extraction
+
+Provide a JSON schema to extract specific fields:
+
+<Tabs>
+  <Tab title="Node.js">
+    ```javascript
+    import { zerox } from 'zerox-ocr';
+
+    const result = await zerox({
+      filePath: 'invoice.pdf',
+      credentials: { apiKey: process.env.OPENAI_API_KEY },
+      schema: {
+        type: "object",
+        properties: {
+          invoiceNumber: { type: "string" },
+          invoiceDate: { type: "string" },
+          totalAmount: { type: "number" },
+          vendor: { type: "string" }
+        }
+      }
+    });
+
+    // Access extracted data
+    console.log(result.extracted);
+    // { invoiceNumber: "INV-001", invoiceDate: "2024-03-15", ... }
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    from zerox import zerox
+
+    result = await zerox(
+        file_path="invoice.pdf",
+        credentials={"api_key": os.getenv("OPENAI_API_KEY")},
+        schema={
+            "type": "object",
+            "properties": {
+                "invoice_number": {"type": "string"},
+                "invoice_date": {"type": "string"},
+                "total_amount": {"type": "number"},
+                "vendor": {"type": "string"}
+            }
+        }
+    )
+
+    print(result.extracted)
+    ```
+  </Tab>
+</Tabs>
+
+## Schema Parameters
+
+<ParamField path="schema" type="object">
+  JSON Schema object defining the structure to extract. Supports:
+  - Primitive types: `string`, `number`, `boolean`
+  - Complex types: `object`, `array`
+  - Nested structures
+</ParamField>
+
+<ParamField path="extractionPrompt" type="string">
+  Custom prompt to guide the extraction process
+</ParamField>
+
+## Extraction Modes
+
+### Full Document Extraction (Default)
+
+By default, extraction analyzes the entire document and returns a single result:
+
+```javascript
+const result = await zerox({
+  filePath: 'contract.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  schema: {
+    type: "object",
+    properties: {
+      parties: {
+        type: "array",
+        items: { type: "string" }
+      },
+      effectiveDate: { type: "string" },
+      terms: { type: "string" }
+    }
+  }
+});
+
+console.log(result.extracted);
+// { parties: ["Company A", "Company B"], effectiveDate: "2024-01-01", ... }
+```
+
+### Per-Page Extraction
+
+Use `extractPerPage` to extract specific fields from each page individually:
+
+```javascript
+const result = await zerox({
+  filePath: 'multi-page-invoice.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  schema: {
+    type: "object",
+    properties: {
+      // Full document fields
+      invoiceNumber: { type: "string" },
+      totalAmount: { type: "number" },
+      
+      // Per-page fields
+      lineItems: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            description: { type: "string" },
+            quantity: { type: "number" },
+            price: { type: "number" }
+          }
+        }
+      }
+    }
+  },
+  extractPerPage: ['lineItems']  // Extract lineItems from each page
+});
+
+// Result structure
+console.log(result.extracted);
+/*
+{
+  invoiceNumber: "INV-001",  // Full document
+  totalAmount: 1500.00,       // Full document
+  lineItems: [                // Per-page extraction
+    { page: 1, value: [...] },
+    { page: 2, value: [...] },
+    { page: 3, value: [...] }
+  ]
+}
+*/
+```
+
+<ParamField path="extractPerPage" type="string[]">
+  Array of schema property names to extract per-page rather than from the full document. Each matching field will return an array with `page` and `value` for each page.
+</ParamField>
+
+## Extract-Only Mode
+
+Skip OCR and only perform extraction by setting `extractOnly: true`:
+
+```javascript
+const result = await zerox({
+  filePath: 'form.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  extractOnly: true,  // Skip OCR, only extract data
+  schema: {
+    type: "object",
+    properties: {
+      firstName: { type: "string" },
+      lastName: { type: "string" },
+      email: { type: "string" },
+      phoneNumber: { type: "string" }
+    }
+  }
+});
+
+// result.pages will be empty
+// result.extracted contains the data
+console.log(result.extracted);
+```
+
+<ParamField path="extractOnly" type="boolean" default={false}>
+  When `true`, skips OCR and only performs extraction. Requires `schema` to be provided. The `pages` array will be empty and only `extracted` will be populated.
+</ParamField>
+
+<Note>
+  In extract-only mode, `directImageExtraction` is automatically enabled, meaning the vision model directly analyzes images rather than extracted text.
+</Note>
+
+## Direct Image Extraction
+
+By default, extraction works on OCR text. Enable direct image extraction to analyze images directly:
+
+```javascript
+const result = await zerox({
+  filePath: 'infographic.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  directImageExtraction: true,  // Extract from images directly
+  schema: {
+    type: "object",
+    properties: {
+      chartTitle: { type: "string" },
+      dataPoints: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            label: { type: "string" },
+            value: { type: "number" }
+          }
+        }
+      }
+    }
+  }
+});
+```
+
+<ParamField path="directImageExtraction" type="boolean" default={false}>
+  When `true`, extraction analyzes images directly rather than OCR text. Useful for charts, infographics, and visual data.
+</ParamField>
+
+## Hybrid Extraction
+
+Combine OCR text and images for best accuracy:
+
+```javascript
+const result = await zerox({
+  filePath: 'report.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  enableHybridExtraction: true,  // Use both text and images
+  schema: {
+    type: "object",
+    properties: {
+      title: { type: "string" },
+      summary: { type: "string" },
+      charts: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            data: { type: "string" }
+          }
+        }
+      }
+    }
+  }
+});
+```
+
+<ParamField path="enableHybridExtraction" type="boolean" default={false}>
+  When `true`, provides both OCR text and images to the extraction model. Requires `schema` to be provided. Cannot be used with `directImageExtraction` or `extractOnly`.
+</ParamField>
+
+## Custom Extraction Models
+
+Use different models and credentials for extraction:
+
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  
+  // OCR model
+  model: 'gpt-4o-mini',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  
+  // Extraction model (more powerful)
+  extractionModel: 'gpt-4o',
+  extractionCredentials: { apiKey: process.env.OPENAI_API_KEY },
+  extractionLlmParams: {
+    temperature: 0.1,
+    maxTokens: 4000
+  },
+  
+  schema: {
+    type: "object",
+    properties: {
+      summary: { type: "string" },
+      keyPoints: {
+        type: "array",
+        items: { type: "string" }
+      }
+    }
+  }
+});
+```
+
+<ParamField path="extractionModel" type="string">
+  Model to use for extraction. Defaults to the same as `model`.
+</ParamField>
+
+<ParamField path="extractionModelProvider" type="string">
+  Provider for extraction model. Defaults to the same as `modelProvider`.
+</ParamField>
+
+<ParamField path="extractionCredentials" type="object">
+  Credentials for extraction model. Defaults to the same as `credentials`.
+</ParamField>
+
+<ParamField path="extractionLlmParams" type="object">
+  LLM parameters for extraction. Defaults to the same as `llmParams`.
+</ParamField>
+
+## Complex Schema Example
+
+```javascript
+const result = await zerox({
+  filePath: 'financial-report.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  schema: {
+    type: "object",
+    properties: {
+      company: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          fiscalYear: { type: "string" },
+          sector: { type: "string" }
+        }
+      },
+      financials: {
+        type: "object",
+        properties: {
+          revenue: { type: "number" },
+          netIncome: { type: "number" },
+          eps: { type: "number" }
+        }
+      },
+      risks: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            category: { type: "string" },
+            description: { type: "string" },
+            severity: {
+              type: "string",
+              enum: ["low", "medium", "high"]
+            }
+          }
+        }
+      }
+    },
+    required: ["company", "financials"]
+  }
+});
+
+console.log(result.extracted);
+```
+
+## Custom Extraction Prompt
+
+Provide guidance for the extraction process:
+
+```javascript
+const result = await zerox({
+  filePath: 'medical-record.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  extractionPrompt: `
+    Extract patient information with attention to:
+    - Date formats should be YYYY-MM-DD
+    - Medication names should be generic (not brand names)
+    - Dosages should include units (mg, ml, etc.)
+  `,
+  schema: {
+    type: "object",
+    properties: {
+      patientId: { type: "string" },
+      visitDate: { type: "string" },
+      medications: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            dosage: { type: "string" },
+            frequency: { type: "string" }
+          }
+        }
+      }
+    }
+  }
+});
+```
+
+## Extraction Output
+
+The extraction results are available in `result.extracted` and also in the summary:
+
+```javascript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  schema: { /* ... */ }
+});
+
+// Extracted data
+console.log(result.extracted);
+
+// Extraction statistics
+console.log(result.summary.extracted);
+/*
+{
+  successful: 5,  // Number of successful extraction requests
+  failed: 0       // Number of failed extraction requests
+}
+*/
+```
+
+## Next Steps
+
+- [Advanced Options](/guides/advanced-options) - Configure image processing and formatting
+- [Error Handling](/guides/error-handling) - Handle extraction errors
+- [Performance Tuning](/guides/performance-tuning) - Optimize extraction speed

@@ -1,0 +1,255 @@
+---
+title: How It Works
+description: Understanding Zerox's document processing pipeline
+---
+
+Zerox uses a sophisticated multi-stage pipeline to convert documents into markdown using vision-powered AI models. This page explains the architecture and processing flow.
+
+## Processing Pipeline
+
+Zerox processes documents through a series of stages, transforming them from their original format into structured markdown.
+
+<Steps>
+  <Step title="File Download & Validation">
+    Zerox accepts both local file paths and URLs. The file is downloaded to a temporary directory and validated:
+    
+    - Downloads remote files via HTTP/HTTPS
+    - Copies local files to temp directory
+    - Detects MIME type and file extension
+    - Validates credentials and input parameters
+    
+    The system supports various input formats including PDFs, images, Office documents, and Excel files.
+  </Step>
+
+  <Step title="File Type Detection & Conversion">
+    Based on the file type, Zerox routes the document through the appropriate conversion path:
+    
+    **Direct Image Processing:**
+    - PNG, JPEG, JPG: Used directly
+    - HEIC: Converted to JPEG format
+    
+    **PDF Processing:**
+    - Native PDFs are validated using magic number check (`%PDF`)
+    - Legacy Compound File Binary (CFB) formats are detected
+    - PDFs are converted to high-resolution images (default 2048px height, 300 DPI)
+    
+    **Office Document Processing:**
+    - DOCX, PPTX, and other formats are converted to PDF using LibreOffice
+    - Then processed through the PDF pipeline
+    
+    **Structured Data Processing:**
+    - Excel files (XLSX, XLS, XLSM, XLSB) are converted directly to HTML tables
+    - Each sheet becomes a separate page
+    - Bypasses image conversion entirely
+  </Step>
+
+  <Step title="Image Preprocessing">
+    Before sending to the vision model, images undergo several optimizations:
+    
+    **Compression:**
+    - Images are compressed to stay under the `maxImageSize` limit (default: 15MB)
+    - Maintains visual quality while reducing token costs
+    
+    **Orientation Correction:**
+    - Uses Tesseract OCR to detect incorrect orientation
+    - Automatically rotates images to correct reading angle
+    - Utilizes worker pool for parallel processing
+    
+    **Edge Trimming:**
+    - Removes unnecessary whitespace and borders
+    - Detects aspect ratios exceeding threshold (>5:1)
+    - Adjusts image dimensions for optimal processing
+    
+    **Format Standardization:**
+    - Converts all images to PNG or JPEG
+    - Encodes as base64 for API transmission
+  </Step>
+
+  <Step title="Vision Model Processing">
+    Images are sent to the configured vision model for OCR or extraction:
+    
+    **OCR Mode (Default):**
+    - System prompt instructs model to convert document to markdown
+    - Includes specific rules for tables, charts, logos, watermarks
+    - `maintainFormat` option ensures consistent formatting across pages
+    - Prior page context helps maintain document structure
+    - Processes pages concurrently (default: 10 at a time)
+    
+    **Extraction Mode:**
+    - Uses structured output with JSON schema
+    - Can process text (from OCR), images directly, or both (hybrid mode)
+    - Supports per-page extraction or full-document extraction
+    - Returns structured data matching the provided schema
+    
+    The model returns markdown text along with token usage metrics.
+  </Step>
+
+  <Step title="Response Processing & Assembly">
+    Results from the vision model are processed and assembled:
+    
+    - Collects content from all pages
+    - Tracks token usage (input/output)
+    - Records success/failure rates
+    - Calculates total completion time
+    - Optionally saves aggregated markdown to output directory
+    
+    For extraction mode, structured data is merged across pages according to the schema.
+  </Step>
+
+  <Step title="Cleanup & Return">
+    Final cleanup and result formatting:
+    
+    - Terminates Tesseract worker pool
+    - Removes temporary files and directories (if `cleanup: true`)
+    - Returns comprehensive output including:
+      - Page-by-page content
+      - Extracted structured data (if schema provided)
+      - Token counts and timing metrics
+      - Success/failure summary
+      - Optional logprobs for analysis
+  </Step>
+</Steps>
+
+## Operation Modes
+
+Zerox supports three primary operation modes:
+
+### OCR Mode
+
+The default mode that converts documents to markdown.
+
+```typescript
+const result = await zerox({
+  filePath: 'document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+});
+
+console.log(result.pages[0].content); // Markdown text
+```
+
+### Extraction Mode
+
+Extracts structured data using a JSON schema, with optional OCR.
+
+```typescript
+const result = await zerox({
+  filePath: 'invoice.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  schema: {
+    type: 'object',
+    properties: {
+      invoice_number: { type: 'string' },
+      total: { type: 'number' },
+    },
+  },
+});
+
+console.log(result.extracted); // Structured data
+```
+
+### Extract-Only Mode
+
+Skips OCR entirely and processes images directly for extraction.
+
+```typescript
+const result = await zerox({
+  filePath: 'form.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  extractOnly: true, // No OCR, direct to extraction
+  schema: { /* ... */ },
+});
+```
+
+### Hybrid Extraction Mode
+
+Combines OCR text with original images for best accuracy.
+
+```typescript
+const result = await zerox({
+  filePath: 'complex-document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  enableHybridExtraction: true, // Sends both text and images
+  schema: { /* ... */ },
+});
+```
+
+<Info>
+Hybrid mode cannot be used with `extractOnly` or `directImageExtraction` modes.
+</Info>
+
+## Concurrency & Performance
+
+Zerox uses several strategies to optimize performance:
+
+- **Parallel Page Processing**: Processes multiple pages simultaneously (configurable via `concurrency`)
+- **Tesseract Worker Pool**: Maintains reusable OCR workers for orientation detection
+- **Dynamic Worker Scaling**: Automatically adjusts worker count based on document size
+- **Retry Logic**: Automatically retries failed requests (configurable via `maxRetries`)
+- **Format Maintenance**: Optional sequential processing when consistency is critical
+
+<Note>
+When `maintainFormat: true`, pages are processed sequentially to ensure consistent formatting across the document.
+</Note>
+
+## Error Handling
+
+Zerox provides two error handling modes:
+
+- **IGNORE** (default): Failed pages are marked with error status, processing continues
+- **THROW**: Processing stops immediately on first error
+
+```typescript
+import { ErrorMode } from 'zerox';
+
+const result = await zerox({
+  filePath: 'document.pdf',
+  errorMode: ErrorMode.THROW, // Stop on first error
+  // ...
+});
+```
+
+The response includes detailed success/failure metrics:
+
+```typescript
+result.summary = {
+  totalPages: 10,
+  ocr: {
+    successful: 9,
+    failed: 1,
+  },
+  extracted: {
+    successful: 1,
+    failed: 0,
+  },
+};
+```
+
+## System Prompts
+
+Zerox uses carefully crafted system prompts to guide the vision model:
+
+**Base OCR Prompt:**
+- Convert document to markdown
+- Include all information (headers, footers, subtext)
+- Return tables in HTML format
+- Interpret charts and infographics
+- Wrap logos, watermarks, and page numbers in brackets
+- Use ☐ and ☑ for checkboxes
+
+**Consistency Prompt:**
+When `maintainFormat: true`, includes the previous page's content to maintain formatting consistency.
+
+<Warning>
+Custom prompts can be provided via the `prompt` parameter, but may affect output quality if not carefully designed.
+</Warning>
+
+## Temporary Files
+
+Zerox creates temporary directories for processing:
+
+- Location: `tempDir` parameter or OS temp directory
+- Structure: `zerox-temp-{random}/source/`
+- Cleanup: Automatic when `cleanup: true` (default)
+- Contents: Downloaded files, converted images, compressed versions
+
+The temporary directory is removed automatically unless `cleanup` is set to `false` for debugging purposes.

@@ -1,0 +1,290 @@
+---
+title: 'Response'
+description: 'ZeroxOutput interface and response structure'
+---
+
+## ZeroxOutput Interface
+
+The return type of the `zerox()` function.
+
+```typescript
+interface ZeroxOutput {
+  completionTime: number;
+  extracted: Record<string, unknown> | null;
+  fileName: string;
+  inputTokens: number;
+  logprobs?: Logprobs;
+  outputTokens: number;
+  pages: Page[];
+  summary: Summary;
+}
+```
+
+## Response Fields
+
+<ResponseField name="completionTime" type="number" required>
+  Total time taken to process the document in milliseconds.
+  
+  ```typescript
+  console.log(`Completed in ${result.completionTime}ms`);
+  ```
+</ResponseField>
+
+<ResponseField name="extracted" type="Record<string, unknown> | null" required>
+  Structured data extracted from the document based on the provided schema. Returns `null` if no schema was provided.
+  
+  ```typescript
+  if (result.extracted) {
+    console.log('Invoice Number:', result.extracted.invoiceNumber);
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="fileName" type="string" required>
+  Sanitized filename derived from the input file. Special characters are removed and spaces are replaced with underscores.
+  
+  ```typescript
+  // Input: "My Document (2024).pdf"
+  // Output: "my_document_2024"
+  console.log(result.fileName);
+  ```
+</ResponseField>
+
+<ResponseField name="inputTokens" type="number" required>
+  Total number of input tokens used across all API calls.
+  
+  Useful for tracking costs and usage.
+</ResponseField>
+
+<ResponseField name="outputTokens" type="number" required>
+  Total number of output tokens generated across all API calls.
+  
+  Useful for tracking costs and usage.
+</ResponseField>
+
+<ResponseField name="pages" type="Page[]" required>
+  Array of processed pages with OCR content and metadata.
+  
+  <Expandable title="Page Interface">
+    ```typescript
+    interface Page {
+      content?: string;
+      contentLength?: number;
+      error?: string;
+      extracted?: Record<string, unknown>;
+      inputTokens?: number;
+      outputTokens?: number;
+      page: number;
+      status: PageStatus;
+    }
+    ```
+    
+    **Properties:**
+    - `content` - Extracted text content from the page
+    - `contentLength` - Length of the content string
+    - `error` - Error message if processing failed
+    - `extracted` - Per-page extracted data (when using `extractPerPage`)
+    - `inputTokens` - Input tokens used for this page
+    - `outputTokens` - Output tokens used for this page
+    - `page` - Page number (1-indexed)
+    - `status` - `PageStatus.SUCCESS` or `PageStatus.ERROR`
+  </Expandable>
+  
+  ```typescript
+  result.pages.forEach(page => {
+    if (page.status === 'SUCCESS') {
+      console.log(`Page ${page.page}: ${page.content}`);
+    }
+  });
+  ```
+</ResponseField>
+
+<ResponseField name="summary" type="Summary" required>
+  Summary statistics about the processing results.
+  
+  <Expandable title="Summary Interface">
+    ```typescript
+    interface Summary {
+      totalPages: number;
+      ocr: {
+        successful: number;
+        failed: number;
+      } | null;
+      extracted: {
+        successful: number;
+        failed: number;
+      } | null;
+    }
+    ```
+    
+    **Properties:**
+    - `totalPages` - Total number of pages in the document
+    - `ocr` - OCR statistics (null in `extractOnly` mode)
+      - `successful` - Number of pages successfully processed
+      - `failed` - Number of pages that failed
+    - `extracted` - Extraction statistics (null if no schema provided)
+      - `successful` - Number of successful extraction operations
+      - `failed` - Number of failed extraction operations
+  </Expandable>
+  
+  ```typescript
+  console.log(`Processed ${result.summary.totalPages} pages`);
+  console.log(`OCR: ${result.summary.ocr?.successful} successful`);
+  ```
+</ResponseField>
+
+<ResponseField name="logprobs" type="Logprobs">
+  Optional log probabilities for OCR and extraction operations. Only present when `logprobs: true` is set in `llmParams` (for supported providers).
+  
+  <Expandable title="Logprobs Interface">
+    ```typescript
+    interface Logprobs {
+      ocr: LogprobPage[] | null;
+      extracted: LogprobPage[] | null;
+    }
+    
+    interface LogprobPage {
+      page: number | null;
+      value: ChatCompletionTokenLogprob[];
+    }
+    ```
+    
+    **Properties:**
+    - `ocr` - Log probabilities for OCR operations (null in `extractOnly` mode)
+    - `extracted` - Log probabilities for extraction operations (null if no schema)
+    - `page` - Page number (null for full-document extractions)
+    - `value` - Array of token-level log probabilities from the model
+  </Expandable>
+  
+  Used for measuring model confidence and debugging.
+</ResponseField>
+
+## Example Response
+
+```typescript
+import { zerox } from 'zerox';
+
+const result = await zerox({
+  filePath: './invoice.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  schema: {
+    type: 'object',
+    properties: {
+      invoiceNumber: { type: 'string' },
+      total: { type: 'number' }
+    }
+  }
+});
+
+console.log(result);
+```
+
+**Output:**
+```json
+{
+  "completionTime": 3542,
+  "fileName": "invoice",
+  "inputTokens": 1250,
+  "outputTokens": 420,
+  "extracted": {
+    "invoiceNumber": "INV-2024-001",
+    "total": 1500.00
+  },
+  "pages": [
+    {
+      "page": 1,
+      "status": "SUCCESS",
+      "content": "INVOICE\n\nInvoice Number: INV-2024-001\nTotal: $1,500.00",
+      "contentLength": 58,
+      "inputTokens": 1250,
+      "outputTokens": 420
+    }
+  ],
+  "summary": {
+    "totalPages": 1,
+    "ocr": {
+      "successful": 1,
+      "failed": 0
+    },
+    "extracted": {
+      "successful": 1,
+      "failed": 0
+    }
+  }
+}
+```
+
+## Accessing Results
+
+### OCR Text
+
+```typescript
+const fullText = result.pages
+  .map(page => page.content)
+  .join('\n\n');
+
+console.log(fullText);
+```
+
+### Extracted Data
+
+```typescript
+if (result.extracted) {
+  const invoiceNumber = result.extracted.invoiceNumber;
+  const total = result.extracted.total;
+  
+  console.log(`Invoice ${invoiceNumber}: $${total}`);
+}
+```
+
+### Per-Page Extraction
+
+When using `extractPerPage`, extracted data includes page numbers:
+
+```typescript
+const result = await zerox({
+  filePath: './document.pdf',
+  credentials: { apiKey: process.env.OPENAI_API_KEY },
+  schema: {
+    type: 'object',
+    properties: {
+      section: { type: 'string' }
+    }
+  },
+  extractPerPage: ['section']
+});
+
+// Extracted data includes page information
+result.extracted?.section.forEach(item => {
+  console.log(`Page ${item.page}: ${item.value}`);
+});
+```
+
+### Error Handling
+
+```typescript
+result.pages.forEach(page => {
+  if (page.status === 'ERROR') {
+    console.error(`Page ${page.page} failed:`, page.error);
+  }
+});
+
+if (result.summary.ocr && result.summary.ocr.failed > 0) {
+  console.warn(`${result.summary.ocr.failed} pages failed OCR`);
+}
+```
+
+### Token Usage
+
+```typescript
+const totalTokens = result.inputTokens + result.outputTokens;
+console.log(`Total tokens used: ${totalTokens}`);
+
+// Per-page token usage
+result.pages.forEach(page => {
+  if (page.inputTokens && page.outputTokens) {
+    const pageTotal = page.inputTokens + page.outputTokens;
+    console.log(`Page ${page.page}: ${pageTotal} tokens`);
+  }
+});
+```

@@ -1,0 +1,123 @@
+---
+title: 'zerox()'
+description: 'Main function for OCR and data extraction from documents'
+---
+
+## Function Signature
+
+```typescript
+export const zerox = async (args: ZeroxArgs): Promise<ZeroxOutput>
+```
+
+The `zerox()` function is the primary entry point for processing documents with OCR and optional structured data extraction.
+
+## Basic Example
+
+```typescript
+import { zerox } from 'zerox';
+
+const result = await zerox({
+  filePath: './document.pdf',
+  credentials: {
+    apiKey: process.env.OPENAI_API_KEY
+  },
+  model: 'gpt-4o'
+});
+
+console.log(result.pages);
+```
+
+## OCR with Custom Prompt
+
+```typescript
+const result = await zerox({
+  filePath: './invoice.pdf',
+  credentials: {
+    apiKey: process.env.OPENAI_API_KEY
+  },
+  prompt: 'Extract all text from this invoice, preserving the layout and structure',
+  maintainFormat: true
+});
+```
+
+## Structured Data Extraction
+
+```typescript
+const result = await zerox({
+  filePath: './invoice.pdf',
+  credentials: {
+    apiKey: process.env.OPENAI_API_KEY
+  },
+  schema: {
+    type: 'object',
+    properties: {
+      invoiceNumber: { type: 'string' },
+      date: { type: 'string' },
+      total: { type: 'number' },
+      items: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            description: { type: 'string' },
+            quantity: { type: 'number' },
+            price: { type: 'number' }
+          }
+        }
+      }
+    }
+  }
+});
+
+console.log(result.extracted);
+```
+
+## Extract-Only Mode
+
+```typescript
+const result = await zerox({
+  filePath: './form.pdf',
+  credentials: {
+    apiKey: process.env.OPENAI_API_KEY
+  },
+  extractOnly: true,
+  schema: {
+    type: 'object',
+    properties: {
+      name: { type: 'string' },
+      email: { type: 'string' },
+      phone: { type: 'string' }
+    }
+  }
+});
+
+// Only structured data is returned, no OCR text
+console.log(result.extracted);
+```
+
+## Hybrid Extraction
+
+```typescript
+const result = await zerox({
+  filePath: './document.pdf',
+  credentials: {
+    apiKey: process.env.OPENAI_API_KEY
+  },
+  enableHybridExtraction: true,
+  schema: {
+    type: 'object',
+    properties: {
+      summary: { type: 'string' },
+      keyPoints: { type: 'array', items: { type: 'string' } }
+    }
+  }
+});
+
+// Processes both OCR text and images for better extraction accuracy
+```
+
+## See Also
+
+- [Parameters](/api/node/parameters) - Complete parameter reference
+- [Response](/api/node/response) - Response object structure
+- [Types](/api/node/types) - TypeScript type definitions

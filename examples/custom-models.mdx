@@ -1,0 +1,572 @@
+---
+title: 'Custom Models'
+description: 'Implement custom model functions for specialized OCR processing'
+icon: 'brain'
+---
+
+## Overview
+
+The `customModelFunction` parameter allows you to implement your own model logic for OCR processing. This is useful when you need specialized processing, custom prompts, or integration with models not natively supported by Zerox.
+
+<Note>
+Custom model functions only apply to the OCR step, not the extraction step. For custom extraction logic, use `extractionModel` and `extractionModelProvider` parameters.
+</Note>
+
+## Custom Model Function Signature
+
+Your custom function must match this signature:
+
+```typescript
+type CustomModelFunction = (params: {
+  buffers: Buffer[];      // Image buffers (original + variants)
+  image: string;          // Path to the image file
+  maintainFormat: boolean; // Whether format should be maintained
+  pageNumber: number;     // Current page number
+  priorPage: string;      // Content from previous page (if maintainFormat)
+}) => Promise<CompletionResponse>;
+
+type CompletionResponse = {
+  content: string;        // The OCR'd markdown content
+  inputTokens: number;    // Number of input tokens used
+  outputTokens: number;   // Number of output tokens used
+  logprobs?: any;         // Optional: log probabilities
+};
+```
+
+## Basic Custom Model Example
+
+<CodeGroup>
+```typescript Node.js
+import { zerox } from 'zerox';
+import Anthropic from '@anthropic-ai/sdk';
+
+const customClaude = async ({ buffers, pageNumber, priorPage, maintainFormat }) => {
+  const anthropic = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY
+  });
+
+  // Build the prompt
+  let prompt = 'Convert this image to markdown format.';
+  if (maintainFormat && priorPage) {
+    prompt += `\n\nPrevious page content for context:\n${priorPage}`;
+  }
+
+  // Convert buffer to base64
+  const base64Image = buffers[0].toString('base64');
+
+  const response = await anthropic.messages.create({
+    model: 'claude-3-5-sonnet-20241022',
+    max_tokens: 4096,
+    messages: [{
+      role: 'user',
+      content: [
+        {
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: 'image/png',
+            data: base64Image
+          }
+        },
+        {
+          type: 'text',
+          text: prompt
+        }
+      ]
+    }]
+  });
+
+  return {
+    content: response.content[0].text,
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens
+  };
+};
+
+// Use the custom function
+const result = await zerox({
+  filePath: './document.pdf',
+  customModelFunction: customClaude
+});
+```
+
+```python Python
+import os
+import base64
+from anthropic import Anthropic
+from pyzerox import zerox
+
+async def custom_claude(buffers, image, maintain_format, page_number, prior_page):
+    client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    
+    # Build the prompt
+    prompt = "Convert this image to markdown format."
+    if maintain_format and prior_page:
+        prompt += f"\n\nPrevious page content for context:\n{prior_page}"
+    
+    # Convert buffer to base64
+    base64_image = base64.b64encode(buffers[0]).decode('utf-8')
+    
+    response = client.messages.create(
+        model="claude-3-5-sonnet-20241022",
+        max_tokens=4096,
+        messages=[{
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/png",
+                        "data": base64_image
+                    }
+                },
+                {
+                    "type": "text",
+                    "text": prompt
+                }
+            ]
+        }]
+    )
+    
+    return {
+        "content": response.content[0].text,
+        "input_tokens": response.usage.input_tokens,
+        "output_tokens": response.usage.output_tokens
+    }
+
+# Use the custom function
+result = await zerox(
+    file_path="./document.pdf",
+    custom_model_function=custom_claude
+)
+```
+</CodeGroup>
+
+## Use Cases for Custom Models
+
+### 1. Domain-Specific Prompts
+
+Customize prompts for specialized document types:
+
+```typescript
+import { zerox } from 'zerox';
+import OpenAI from 'openai';
+
+const medicalDocumentOCR = async ({ buffers, pageNumber }) => {
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+  const base64Image = buffers[0].toString('base64');
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [{
+      role: 'user',
+      content: [
+        {
+          type: 'image_url',
+          image_url: {
+            url: `data:image/png;base64,${base64Image}`
+          }
+        },
+        {
+          type: 'text',
+          text: `Convert this medical document to markdown. 
+                 Preserve medical terminology exactly as written.
+                 Format dosages, measurements, and dates clearly.
+                 Use tables for lab results and vital signs.`
+        }
+      ]
+    }],
+    max_tokens: 4096
+  });
+
+  return {
+    content: response.choices[0].message.content,
+    inputTokens: response.usage.prompt_tokens,
+    outputTokens: response.usage.completion_tokens
+  };
+};
+
+const result = await zerox({
+  filePath: './patient-records.pdf',
+  customModelFunction: medicalDocumentOCR
+});
+```
+
+### 2. Multi-Model Fallback
+
+Try multiple models with fallback logic:
+
+```typescript
+import { zerox } from 'zerox';
+import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
+
+const multiModelOCR = async ({ buffers, pageNumber }) => {
+  const base64Image = buffers[0].toString('base64');
+
+  // Try GPT-4o first
+  try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: `data:image/png;base64,${base64Image}` } },
+          { type: 'text', text: 'Convert to markdown.' }
+        ]
+      }],
+      max_tokens: 4096
+    });
+
+    return {
+      content: response.choices[0].message.content,
+      inputTokens: response.usage.prompt_tokens,
+      outputTokens: response.usage.completion_tokens
+    };
+  } catch (error) {
+    console.log(`GPT-4o failed for page ${pageNumber}, trying Claude...`);
+  }
+
+  // Fallback to Claude
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const response = await anthropic.messages.create({
+    model: 'claude-3-5-sonnet-20241022',
+    max_tokens: 4096,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: base64Image } },
+        { type: 'text', text: 'Convert to markdown.' }
+      ]
+    }]
+  });
+
+  return {
+    content: response.content[0].text,
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens
+  };
+};
+
+const result = await zerox({
+  filePath: './document.pdf',
+  customModelFunction: multiModelOCR
+});
+```
+
+### 3. Custom Post-Processing
+
+Add custom processing to the OCR output:
+
+```typescript
+import { zerox } from 'zerox';
+import OpenAI from 'openai';
+
+const ocrWithPostProcessing = async ({ buffers, pageNumber }) => {
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const base64Image = buffers[0].toString('base64');
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image_url', image_url: { url: `data:image/png;base64,${base64Image}` } },
+        { type: 'text', text: 'Convert to markdown.' }
+      ]
+    }],
+    max_tokens: 4096
+  });
+
+  let content = response.choices[0].message.content;
+
+  // Custom post-processing
+  content = content
+    .replace(/\b(\d{3})-(\d{2})-(\d{4})\b/g, '***-**-$3')  // Redact SSNs
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[EMAIL_REDACTED]')  // Redact emails
+    .replace(/\b\d{16}\b/g, '[CARD_REDACTED]');  // Redact credit cards
+
+  return {
+    content,
+    inputTokens: response.usage.prompt_tokens,
+    outputTokens: response.usage.completion_tokens
+  };
+};
+
+const result = await zerox({
+  filePath: './sensitive-document.pdf',
+  customModelFunction: ocrWithPostProcessing
+});
+```
+
+### 4. Local Model Integration
+
+Integrate with locally hosted models:
+
+```typescript
+import { zerox } from 'zerox';
+import axios from 'axios';
+
+const localModelOCR = async ({ buffers, pageNumber }) => {
+  const base64Image = buffers[0].toString('base64');
+
+  // Call local Ollama instance
+  const response = await axios.post('http://localhost:11434/api/generate', {
+    model: 'llava',
+    prompt: 'Convert this image to markdown format.',
+    images: [base64Image],
+    stream: false
+  });
+
+  return {
+    content: response.data.response,
+    inputTokens: response.data.prompt_eval_count || 0,
+    outputTokens: response.data.eval_count || 0
+  };
+};
+
+const result = await zerox({
+  filePath: './document.pdf',
+  customModelFunction: localModelOCR
+});
+```
+
+## Handling Image Buffers
+
+The `buffers` array contains multiple versions of the image:
+
+```typescript
+const customModel = async ({ buffers, image }) => {
+  // buffers[0] - Original/processed image
+  // buffers[1] - Trimmed version (if trimEdges is enabled)
+  // buffers[2] - Corrected orientation (if correctOrientation is enabled)
+  
+  // Use the first buffer (most processed)
+  const primaryBuffer = buffers[0];
+  
+  // Or check the original file
+  const fs = require('fs');
+  const originalImage = fs.readFileSync(image);
+  
+  // Convert to base64 for API calls
+  const base64 = primaryBuffer.toString('base64');
+  
+  // ... rest of your logic
+};
+```
+
+## Maintaining Format Across Pages
+
+When `maintainFormat` is enabled, use the `priorPage` context:
+
+```typescript
+const customModel = async ({ buffers, maintainFormat, priorPage, pageNumber }) => {
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const base64Image = buffers[0].toString('base64');
+
+  let systemPrompt = 'Convert this image to markdown.';
+  
+  if (maintainFormat && priorPage && pageNumber > 1) {
+    systemPrompt += `
+      This page continues from a previous page. 
+      Maintain the same table structure and formatting.
+      
+      Previous page ending:
+      ${priorPage.slice(-500)}  // Last 500 chars of previous page
+    `;
+  }
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image_url', image_url: { url: `data:image/png;base64,${base64Image}` } },
+        { type: 'text', text: systemPrompt }
+      ]
+    }],
+    max_tokens: 4096
+  });
+
+  return {
+    content: response.choices[0].message.content,
+    inputTokens: response.usage.prompt_tokens,
+    outputTokens: response.usage.completion_tokens
+  };
+};
+```
+
+## Error Handling
+
+Implement proper error handling in your custom function:
+
+```typescript
+import { zerox } from 'zerox';
+import OpenAI from 'openai';
+
+const robustCustomModel = async ({ buffers, pageNumber }) => {
+  try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const base64Image = buffers[0].toString('base64');
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: `data:image/png;base64,${base64Image}` } },
+          { type: 'text', text: 'Convert to markdown.' }
+        ]
+      }],
+      max_tokens: 4096,
+      timeout: 30000  // 30 second timeout
+    });
+
+    if (!response.choices[0]?.message?.content) {
+      throw new Error('Empty response from model');
+    }
+
+    return {
+      content: response.choices[0].message.content,
+      inputTokens: response.usage?.prompt_tokens || 0,
+      outputTokens: response.usage?.completion_tokens || 0
+    };
+  } catch (error) {
+    console.error(`Error processing page ${pageNumber}:`, error);
+    throw error;  // Re-throw to let Zerox handle retries
+  }
+};
+
+const result = await zerox({
+  filePath: './document.pdf',
+  customModelFunction: robustCustomModel,
+  maxRetries: 3  // Zerox will retry on failures
+});
+```
+
+## Logging and Monitoring
+
+Add logging to track custom model performance:
+
+```typescript
+import { zerox } from 'zerox';
+import OpenAI from 'openai';
+
+const customModelWithLogging = async ({ buffers, pageNumber, image }) => {
+  const startTime = Date.now();
+  
+  try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const base64Image = buffers[0].toString('base64');
+
+    console.log(`[Page ${pageNumber}] Starting OCR...`);
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: `data:image/png;base64,${base64Image}` } },
+          { type: 'text', text: 'Convert to markdown.' }
+        ]
+      }],
+      max_tokens: 4096
+    });
+
+    const duration = Date.now() - startTime;
+    const content = response.choices[0].message.content;
+    
+    console.log(`[Page ${pageNumber}] Completed in ${duration}ms`);
+    console.log(`[Page ${pageNumber}] Input tokens: ${response.usage.prompt_tokens}`);
+    console.log(`[Page ${pageNumber}] Output tokens: ${response.usage.completion_tokens}`);
+    console.log(`[Page ${pageNumber}] Content length: ${content.length} chars`);
+
+    return {
+      content,
+      inputTokens: response.usage.prompt_tokens,
+      outputTokens: response.usage.completion_tokens
+    };
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    console.error(`[Page ${pageNumber}] Failed after ${duration}ms:`, error.message);
+    throw error;
+  }
+};
+
+const result = await zerox({
+  filePath: './document.pdf',
+  customModelFunction: customModelWithLogging
+});
+
+console.log(`\nTotal processing time: ${result.completionTime}ms`);
+console.log(`Total tokens: ${result.inputTokens + result.outputTokens}`);
+```
+
+## Limitations
+
+<Warning>
+**Custom Model Function Limitations:**
+
+- Only applies to OCR, not extraction
+- Must return the exact `CompletionResponse` format
+- Zerox's built-in retry logic uses your function
+- You're responsible for all API calls and error handling
+- Token counting must be accurate for cost tracking
+</Warning>
+
+## Combining with Other Features
+
+Custom models work with most Zerox features:
+
+```typescript
+import { zerox } from 'zerox';
+
+const result = await zerox({
+  filePath: './document.pdf',
+  
+  // Custom OCR
+  customModelFunction: myCustomModel,
+  
+  // But standard extraction
+  schema: {
+    type: 'object',
+    properties: {
+      title: { type: 'string' },
+      summary: { type: 'string' }
+    }
+  },
+  extractionModel: 'gpt-4o-mini',
+  extractionModelProvider: 'OPENAI',
+  
+  // Other options work normally
+  maintainFormat: true,
+  concurrency: 5,
+  maxRetries: 2
+});
+
+// result.pages uses your custom model
+// result.extracted uses the standard extraction model
+```
+
+## Best Practices
+
+1. **Always validate the response format** - Ensure your function returns the correct structure
+2. **Handle errors gracefully** - Let Zerox's retry logic work by throwing errors
+3. **Log appropriately** - Track performance and debug issues
+4. **Count tokens accurately** - Important for cost tracking and monitoring
+5. **Use timeouts** - Prevent hanging on slow API calls
+6. **Test thoroughly** - Validate with various document types
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Schema Extraction" icon="brackets-curly" href="/examples/schema-extraction">
+    Learn about structured data extraction
+  </Card>
+  <Card title="Maintain Format" icon="table" href="/examples/maintain-format">
+    Preserve formatting across pages
+  </Card>
+</CardGroup>
